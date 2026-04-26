@@ -1,0 +1,1 @@
+docker build -t pdo_contracts:0.4.29 -f ./Dockerfile .

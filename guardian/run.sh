@@ -1,0 +1,1 @@
+docker run --rm --env F_GUARDIAN_HOST=localhost --network=host --name pdo-guardian pdo-guardian:latest
