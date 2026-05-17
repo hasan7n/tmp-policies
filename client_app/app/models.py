@@ -3,10 +3,15 @@ from django.db import models
 
 class AppConfig(models.Model):
     """Singleton application configuration."""
-    ledger_url = models.CharField(max_length=200, default='http://127.0.0.1:6600')
-    asset_registry_url = models.CharField(max_length=200, default='http://127.0.0.1:8001')
-    template_registry_url = models.CharField(max_length=200, default='http://127.0.0.1:8002')
-    public_key = models.TextField(default='')  # user identity (username for now)
+
+    ledger_url = models.CharField(max_length=200, default="http://127.0.0.1:6600")
+    asset_registry_url = models.CharField(
+        max_length=200, default="http://127.0.0.1:8001"
+    )
+    template_registry_url = models.CharField(
+        max_length=200, default="http://127.0.0.1:8002"
+    )
+    public_key = models.TextField(default="")  # user identity (username for now)
 
     @classmethod
     def get_instance(cls):
@@ -31,19 +36,20 @@ class Entity(models.Model):
     For ASSET entities, ``extra_data`` additionally holds policy/token
     contract ids and guardian connection info.
     """
+
     ENTITY_TYPES = [
-        ('WALLET', 'Wallet'),
-        ('ASSET', 'Asset'),
+        ("WALLET", "Wallet"),
+        ("ASSET", "Asset"),
     ]
 
     did = models.CharField(max_length=500, unique=True)
     name = models.CharField(max_length=200)
     entity_type = models.CharField(max_length=20, choices=ENTITY_TYPES)
-    contract_name = models.CharField(max_length=200, default='')
-    owner_key = models.TextField(default='')
+    contract_name = models.CharField(max_length=200, default="")
+    owner_key = models.TextField(default="")
 
-    save_basename = models.CharField(max_length=200, default='')
-    save_blob = models.BinaryField(default=b'')
+    save_basename = models.CharField(max_length=200, default="")
+    save_blob = models.BinaryField(default=b"")
 
     extra_data = models.JSONField(default=dict, blank=True)
 
@@ -53,4 +59,8 @@ class Entity(models.Model):
     @property
     def signing_contexts(self):
         """Return the list of signing contexts registered on this wallet."""
-        return self.extra_data.get('signing_contexts', []) if self.entity_type == 'WALLET' else []
+        return (
+            self.extra_data.get("signing_contexts", [])
+            if self.entity_type == "WALLET"
+            else []
+        )

@@ -22,25 +22,30 @@ from .views.wallets import (
 #     for pages where multiple distinct actions are possible.
 urlpatterns = [
     # Assets (pages)
-    path('', AssetsListView.as_view(), name='assets_page'),
-    path('assets/setup/', AssetSetupView.as_view(), name='asset_setup'),
-    path('assets/<int:pk>/expose/', AssetExposeView.as_view(), name='asset_expose'),
-
+    path("", AssetsListView.as_view(), name="assets_page"),
+    path("assets/setup/", AssetSetupView.as_view(), name="asset_setup"),
+    path("assets/<int:pk>/expose/", AssetExposeView.as_view(), name="asset_expose"),
     # Wallets (pages)
-    path('wallets/', WalletsListView.as_view(), name='wallets'),
-    path('wallets/<int:pk>/', WalletDetailView.as_view(), name='wallet_detail'),
-
+    path("wallets/", WalletsListView.as_view(), name="wallets"),
+    path("wallets/<int:pk>/", WalletDetailView.as_view(), name="wallet_detail"),
     # Config + identity (pages)
-    path('config/', ConfigPageView.as_view(), name='config'),
-    path('identity/set/', IdentitySetView.as_view(), name='identity_set'),
-
+    path("config/", ConfigPageView.as_view(), name="config"),
+    path("identity/set/", IdentitySetView.as_view(), name="identity_set"),
     # JSON endpoints
-    path('api/assets/use/',
-         AssetUseEndpoint.as_view(), name='api_asset_use'),
-    path('api/wallets/<int:pk>/add-vc/',
-         WalletAddVCEndpoint.as_view(), name='api_wallet_add_vc'),
-    path('api/wallets/<int:pk>/register-issuer/',
-         WalletRegisterIssuerEndpoint.as_view(), name='api_wallet_register_issuer'),
-    path('api/wallets/<int:pk>/sign-credential/',
-         WalletSignCredentialEndpoint.as_view(), name='api_wallet_sign_credential'),
+    path("api/assets/use/", AssetUseEndpoint.as_view(), name="api_asset_use"),
+    path(
+        "api/wallets/<int:pk>/add-vc/",
+        WalletAddVCEndpoint.as_view(),
+        name="api_wallet_add_vc",
+    ),
+    path(
+        "api/wallets/<int:pk>/register-issuer/",
+        WalletRegisterIssuerEndpoint.as_view(),
+        name="api_wallet_register_issuer",
+    ),
+    path(
+        "api/wallets/<int:pk>/sign-credential/",
+        WalletSignCredentialEndpoint.as_view(),
+        name="api_wallet_sign_credential",
+    ),
 ]

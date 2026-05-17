@@ -15,7 +15,7 @@ def set_current_identity(public_key):
     """Set the current identity (public key / username)."""
     config = AppConfig.get_instance()
     config.public_key = public_key
-    config.save(update_fields=['public_key'])
+    config.save(update_fields=["public_key"])
 
 
 def is_configured():

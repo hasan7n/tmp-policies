@@ -16,7 +16,7 @@ os.environ.setdefault("PDO_LEDGER_URL", "http://127.0.0.1:6600")
 os.environ.setdefault("F_SERVICE_HOST", "hasan-HP-ZBook-15-G3")
 os.environ.setdefault(
     "USER_KEYS_FOLDER",
-    "/home/hasan/work/pdos/policies_client/user_keys",
+    "/home/hasan/work/pdos/tmp-policies/policies_client/user_keys",
 )
 
 os.environ.setdefault("PDO_INSTALL_ROOT", "/home/hasan/work/pdos/pdo_install")

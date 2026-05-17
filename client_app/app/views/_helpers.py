@@ -20,23 +20,24 @@ class ConfiguredRequiredMixin:
 
     def dispatch(self, request, *args, **kwargs):
         if not AppConfig.get_instance().is_configured():
-            return redirect('/config/')
+            return redirect("/config/")
         return super().dispatch(request, *args, **kwargs)
 
 
 class BaseView(ConfiguredRequiredMixin, View):
     """Convenience base for app pages that require configuration."""
+
     pass
 
 
-def redirect_with_msg(url, msg, msg_type='info'):
+def redirect_with_msg(url, msg, msg_type="info"):
     """Redirect to ``url`` with ``?msg=...&msg_type=...`` appended.
 
     The base template's flash.js reads these params on page load, shows the
     message via ``alert(...)``, then strips them from the URL via
     ``history.replaceState`` so a refresh doesn't repeat them.
     """
-    sep = '&' if '?' in url else '?'
+    sep = "&" if "?" in url else "?"
     return redirect(f"{url}{sep}{urlencode({'msg': msg, 'msg_type': msg_type})}")
 
 
@@ -48,27 +49,27 @@ class JsonView(BaseView):
     errors should raise ``ValueError``; everything else becomes a 500.
     """
 
-    http_method_names = ['post']
+    http_method_names = ["post"]
 
     def post(self, request, *args, **kwargs):
         if request.body:
             try:
-                data = json.loads(request.body.decode('utf-8'))
+                data = json.loads(request.body.decode("utf-8"))
             except json.JSONDecodeError as e:
-                return JsonResponse({'error': f'invalid JSON body: {e}'}, status=400)
+                return JsonResponse({"error": f"invalid JSON body: {e}"}, status=400)
         else:
             data = {}
 
         try:
             result = self.handle(request, data, *args, **kwargs)
         except ValueError as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            return JsonResponse({"error": str(e)}, status=400)
         except Exception as e:
             logger.exception("JSON endpoint %s failed", self.__class__.__name__)
-            return JsonResponse({'error': str(e)}, status=500)
+            return JsonResponse({"error": str(e)}, status=500)
 
         if result is None:
-            return JsonResponse({'ok': True})
+            return JsonResponse({"ok": True})
         return JsonResponse(result)
 
     def handle(self, request, data, **kwargs):

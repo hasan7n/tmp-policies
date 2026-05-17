@@ -1,10 +1,8 @@
 """PDO state singleton for the webui.
 
-The decentralized helpers all take ``state`` as their first argument; we
-build it once at app start (via ``startup.initialize``) and hand it out
-through ``get_state``. ``parse_shell_command_line`` also seeds the
-process-wide ``pdo.common.config.shared_configuration`` while it runs, so
-no extra init is needed.
+The decentralized helpers all take ``state`` as their first argument. We
+build it the first time it's needed and hand the same instance out
+thereafter. Init is guarded by a lock so concurrent callers don't race.
 """
 
 import sys
@@ -26,14 +24,20 @@ _state = None
 _bindings = None
 
 
-def setup_pdo_state():
+def _initialize():
     args = [
-        "--logfile", F_LOGFILE,
-        "--loglevel", F_LOGLEVEL,
-        "--ledger", PDO_LEDGER_URL,
-        "--groups-db", F_SERVICE_GROUPS_DB_FILE,
-        "--service-db", F_SERVICE_DB_FILE,
-        "--data-dir", SCRATCH_DIR,
+        "--logfile",
+        F_LOGFILE,
+        "--loglevel",
+        F_LOGLEVEL,
+        "--ledger",
+        PDO_LEDGER_URL,
+        "--groups-db",
+        F_SERVICE_GROUPS_DB_FILE,
+        "--service-db",
+        F_SERVICE_DB_FILE,
+        "--data-dir",
+        SCRATCH_DIR,
     ]
     env = parse_shell_command_line(args)
     if env is None:
@@ -42,20 +46,20 @@ def setup_pdo_state():
     return state, bindings
 
 
+def _ensure():
+    global _state, _bindings
+    if _state is not None:
+        return
+    with _lock:
+        if _state is None:
+            _state, _bindings = _initialize()
+
+
 def get_state():
-    if _state is None:
-        raise RuntimeError("PDO state not initialized — call startup.initialize() first.")
+    _ensure()
     return _state
 
 
 def get_bindings():
-    if _bindings is None:
-        raise RuntimeError("PDO bindings not initialized — call startup.initialize() first.")
+    _ensure()
     return _bindings
-
-
-def _set(state, bindings):
-    global _state, _bindings
-    with _lock:
-        _state = state
-        _bindings = bindings

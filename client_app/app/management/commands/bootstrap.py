@@ -1,28 +1,26 @@
-"""PDO bootstrap on Django app start.
+"""One-shot bootstrap to be run before ``manage.py runserver``.
 
-Mirrors the decentralized test ``startup.py``:
-  1. Set env vars (via ``pdo_config`` import side effect).
-  2. Copy the network cert, site.toml, and user keys into ``PDO_HOME``.
-  3. Initialize ``state`` + the local service registries (eservice / pservice
-     / sservice) via the ``do_*`` commands.
+Copies the network cert, ``site.toml``, and user keys into ``PDO_HOME``,
+then populates the local service registries (eservice / pservice /
+sservice / service_db). Idempotent — safe to re-run on every start.
+
+The dev server itself does not run any of this; it picks up the
+on-disk state lazily via ``pdo_state.get_state()`` on first use.
 """
 
 import logging
 import os
 import shutil
-import threading
 
-# Importing pdo_config sets the env vars that pdo.* modules read at import.
-from . import pdo_config as cfg
-from . import pdo_state
-from .models import AppConfig
+from django.core.management.base import BaseCommand
+
+from ... import pdo_config as cfg
+from ... import pdo_state
 
 logger = logging.getLogger(__name__)
-_init_lock = threading.Lock()
-_initialized = False
 
 
-def _bootstrap_files():
+def _copy_files():
     os.makedirs(cfg.SCRATCH_DIR, exist_ok=True)
     os.makedirs(cfg.DOWNLOAD_OUTPUT_DIR, exist_ok=True)
 
@@ -52,7 +50,7 @@ def _bootstrap_files():
         logger.warning("user keys folder %s missing", cfg.USER_KEYS_FOLDER)
 
 
-def _setup_local_databases(state, bindings):
+def _populate_service_registries(state, bindings):
     from pdo.client.commands.eservice import do_eservice
     from pdo.client.commands.pservice import do_pservice
     from pdo.client.commands.service_db import do_service_db
@@ -93,22 +91,18 @@ def _setup_local_databases(state, bindings):
             "--group",
             "default",
             "--replicas",
-            "5",
+            "1",
             "--duration",
-            "60000",
+            "6000",
         ],
     )
 
 
-def initialize():
-    global _initialized
-    with _init_lock:
-        if _initialized:
-            return
-        AppConfig.get_instance()  # ensure singleton row exists
-        _bootstrap_files()
-        state, bindings = pdo_state.setup_pdo_state()
-        _setup_local_databases(state, bindings)
-        pdo_state._set(state, bindings)
-        _initialized = True
-        logger.info("PDO state initialized for webui.")
+class Command(BaseCommand):
+    help = "Copy PDO files and populate local service registries. Run before runserver."
+
+    def handle(self, *args, **options):
+        _copy_files()
+        state, bindings = pdo_state.get_state(), pdo_state.get_bindings()
+        _populate_service_registries(state, bindings)
+        self.stdout.write(self.style.SUCCESS("Bootstrap complete."))

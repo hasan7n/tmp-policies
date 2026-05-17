@@ -24,21 +24,25 @@ class AssetsListView(BaseView):
         list_error = None
         try:
             assets = registry_client.list_assets()
-            local_map = {e.did: e for e in Entity.objects.filter(entity_type='ASSET')}
+            local_map = {e.did: e for e in Entity.objects.filter(entity_type="ASSET")}
             for a in assets:
-                e = local_map.get(a['did'])
-                a['is_local'] = e is not None
-                a['local_pk'] = e.pk if e else None
+                e = local_map.get(a["did"])
+                a["is_local"] = e is not None
+                a["local_pk"] = e.pk if e else None
         except Exception as e:
             logger.exception("Failed to fetch assets")
             list_error = str(e)
 
-        wallets = Entity.objects.filter(entity_type='WALLET').order_by('pk')
-        return render(request, 'assets/list.html', {
-            'assets': assets,
-            'wallets': wallets,
-            'list_error': list_error,
-        })
+        wallets = Entity.objects.filter(entity_type="WALLET").order_by("pk")
+        return render(
+            request,
+            "assets/list.html",
+            {
+                "assets": assets,
+                "wallets": wallets,
+                "list_error": list_error,
+            },
+        )
 
 
 class AssetSetupView(BaseView):
@@ -50,19 +54,23 @@ class AssetSetupView(BaseView):
     """
 
     def get(self, request):
-        return render(request, 'assets/setup.html')
+        return render(request, "assets/setup.html")
 
     def post(self, request):
-        name = (request.POST.get('name') or '').strip()
-        data_source = (request.POST.get('data_source') or '').strip()
-        guardian_url = (request.POST.get('guardian_url') or '').strip()
-        guardian_port = (request.POST.get('guardian_port') or '').strip()
+        name = (request.POST.get("name") or "").strip()
+        data_source = (request.POST.get("data_source") or "").strip()
+        guardian_url = (request.POST.get("guardian_url") or "").strip()
+        guardian_port = (request.POST.get("guardian_port") or "").strip()
 
         if not all([name, data_source, guardian_url, guardian_port]):
-            return render(request, 'assets/setup.html', {
-                'form': request.POST,
-                'error': 'All fields are required.',
-            })
+            return render(
+                request,
+                "assets/setup.html",
+                {
+                    "form": request.POST,
+                    "error": "All fields are required.",
+                },
+            )
 
         config = AppConfig.get_instance()
         user_name = config.public_key
@@ -74,36 +82,45 @@ class AssetSetupView(BaseView):
             Entity.objects.create(
                 did=did,
                 name=name,
-                entity_type='ASSET',
-                contract_name=f'identity.{name}.signature_authority',
+                entity_type="ASSET",
+                contract_name=f"identity.{name}.signature_authority",
                 owner_key=user_name,
-                extra_data={'guardian_url': guardian_url, 'guardian_port': guardian_port},
-            )
-
-            registry_asset = registry_client.register_asset(
-                name=name, did=did,
-                metadata={
-                    'guardian_url': guardian_url,
-                    'guardian_port': guardian_port,
-                    'data_source': data_source,
+                extra_data={
+                    "guardian_url": guardian_url,
+                    "guardian_port": guardian_port,
                 },
             )
 
-            registry_pk = registry_asset['id']
+            registry_asset = registry_client.register_asset(
+                name=name,
+                did=did,
+                metadata={
+                    "guardian_url": guardian_url,
+                    "guardian_port": guardian_port,
+                    "data_source": data_source,
+                },
+            )
+
+            registry_pk = registry_asset["id"]
             asset_registry_url = (
                 f"{config.asset_registry_url.rstrip('/')}/api/assets/{registry_pk}/"
             )
             registry_client.update_asset_metadata(
-                registry_pk, {'asset_registry_url': asset_registry_url})
+                registry_pk, {"asset_registry_url": asset_registry_url}
+            )
 
         except Exception as e:
             logger.exception("Failed to register asset")
-            return render(request, 'assets/setup.html', {
-                'form': request.POST,
-                'error': f'Failed to register asset: {e}',
-            })
+            return render(
+                request,
+                "assets/setup.html",
+                {
+                    "form": request.POST,
+                    "error": f"Failed to register asset: {e}",
+                },
+            )
 
-        return redirect_with_msg('/', f'Asset "{name}" registered.', 'success')
+        return redirect_with_msg("/", f'Asset "{name}" registered.', "success")
 
 
 class AssetExposeView(BaseView):
@@ -113,7 +130,7 @@ class AssetExposeView(BaseView):
     """
 
     def get(self, request, pk):
-        entity = get_object_or_404(Entity, pk=pk, entity_type='ASSET')
+        entity = get_object_or_404(Entity, pk=pk, entity_type="ASSET")
 
         templates, templates_error = [], None
         try:
@@ -122,72 +139,86 @@ class AssetExposeView(BaseView):
             logger.exception("Failed to fetch policy templates")
             templates_error = str(e)
 
-        return render(request, 'assets/expose.html', {
-            'entity': entity,
-            'templates': templates,
-            'templates_error': templates_error,
-            'expose_result': request.session.pop('last_expose_result', None),
-        })
+        return render(
+            request,
+            "assets/expose.html",
+            {
+                "entity": entity,
+                "templates": templates,
+                "templates_error": templates_error,
+                "expose_result": request.session.pop("last_expose_result", None),
+            },
+        )
 
     def post(self, request, pk):
-        entity = get_object_or_404(Entity, pk=pk, entity_type='ASSET')
+        entity = get_object_or_404(Entity, pk=pk, entity_type="ASSET")
         user_name = AppConfig.get_instance().public_key
-        url = f'/assets/{pk}/expose/'
+        url = f"/assets/{pk}/expose/"
 
-        policy_data_raw = (request.POST.get('policy_data') or '').strip()
+        policy_data_raw = (request.POST.get("policy_data") or "").strip()
         try:
             policy_data = json.loads(policy_data_raw) if policy_data_raw else {}
         except json.JSONDecodeError as e:
-            return redirect_with_msg(url, f'Invalid policy data JSON: {e}', 'error')
+            return redirect_with_msg(url, f"Invalid policy data JSON: {e}", "error")
 
-        guardian_host = entity.extra_data.get('guardian_url', '')
-        guardian_port = entity.extra_data.get('guardian_port', '')
+        guardian_host = entity.extra_data.get("guardian_url", "")
+        guardian_port = entity.extra_data.get("guardian_port", "")
         if not guardian_host:
             try:
-                meta = (registry_client.get_asset_by_did(entity.did) or {}).get('metadata', {}) or {}
-                guardian_host = meta.get('guardian_url', '')
-                guardian_port = meta.get('guardian_port', '')
+                meta = (registry_client.get_asset_by_did(entity.did) or {}).get(
+                    "metadata", {}
+                ) or {}
+                guardian_host = meta.get("guardian_url", "")
+                guardian_port = meta.get("guardian_port", "")
             except Exception:
                 pass
 
         if not guardian_host or not guardian_port:
             return redirect_with_msg(
-                url, 'Guardian URL/port missing on this asset.', 'error')
+                url, "Guardian URL/port missing on this asset.", "error"
+            )
 
         guardian = _guardian_url_port(guardian_host, guardian_port)
 
         try:
             result = pdo_runner.create_asset_policy(
-                f'Policy for {entity.name}', guardian, user_name)
+                f"Policy for {entity.name}", guardian, user_name
+            )
 
             if policy_data:
                 pdo_runner.set_policy_data(
-                    result['policy_contract_id'], policy_data, user_name)
+                    result["policy_contract_id"], policy_data, user_name
+                )
 
-            entity.extra_data.update({
-                'policy_contract_id': result['policy_contract_id'],
-                'token_contract_id': result['token_contract_id'],
-                'guardian_url': guardian_host,
-                'guardian_port': guardian_port,
-            })
-            entity.save(update_fields=['extra_data'])
+            entity.extra_data.update(
+                {
+                    "policy_contract_id": result["policy_contract_id"],
+                    "token_contract_id": result["token_contract_id"],
+                    "guardian_url": guardian_host,
+                    "guardian_port": guardian_port,
+                }
+            )
+            entity.save(update_fields=["extra_data"])
 
-            token_did = make_did(result['token_contract_id'])
+            token_did = make_did(result["token_contract_id"])
             registry_client.update_asset_metadata_by_did(
                 entity.did,
-                {'policy_contract': token_did, 'policy_data': policy_data},
+                {"policy_contract": token_did, "policy_data": policy_data},
             )
 
         except Exception as e:
             logger.exception("Failed to expose asset")
-            return redirect_with_msg(url, f'Failed to expose asset: {e}', 'error')
+            return redirect_with_msg(url, f"Failed to expose asset: {e}", "error")
 
-        request.session['last_expose_result'] = json.dumps({
-            'policy_contract_id': result['policy_contract_id'],
-            'token_contract_id': result['token_contract_id'],
-            'token_did': token_did,
-        }, indent=2)
-        return redirect_with_msg(url, 'Asset exposed via download policy.', 'success')
+        request.session["last_expose_result"] = json.dumps(
+            {
+                "policy_contract_id": result["policy_contract_id"],
+                "token_contract_id": result["token_contract_id"],
+                "token_did": token_did,
+            },
+            indent=2,
+        )
+        return redirect_with_msg(url, "Asset exposed via download policy.", "success")
 
 
 # ============================================================
@@ -198,25 +229,26 @@ class AssetUseEndpoint(JsonView):
     return ``{output_file, issued_vc}``."""
 
     def handle(self, request, data, **kwargs):
-        asset_did = require(data, 'asset_did')
-        wallet_pk = require(data, 'wallet_pk')
+        asset_did = require(data, "asset_did")
+        wallet_pk = require(data, "wallet_pk")
 
-        wallet = get_object_or_404(Entity, pk=wallet_pk, entity_type='WALLET')
+        wallet = get_object_or_404(Entity, pk=wallet_pk, entity_type="WALLET")
         user_name = AppConfig.get_instance().public_key
 
         asset_info = registry_client.get_asset_by_did(asset_did)
-        metadata = asset_info.get('metadata', {}) or {}
+        metadata = asset_info.get("metadata", {}) or {}
 
-        token_did = metadata.get('policy_contract', '')
+        token_did = metadata.get("policy_contract", "")
         if not token_did:
             raise ValueError(
-                'Asset has not been exposed (no policy_contract in registry).')
+                "Asset has not been exposed (no policy_contract in registry)."
+            )
 
         token_contract_id, _ = parse_did(token_did)
         wallet_id, _ = parse_did(wallet.did)
         guardian = _guardian_url_port(
-            metadata.get('guardian_url', ''),
-            metadata.get('guardian_port', ''),
+            metadata.get("guardian_url", ""),
+            metadata.get("guardian_port", ""),
         )
 
         output_path, issued_vc = pdo_runner.use_asset(
@@ -225,4 +257,4 @@ class AssetUseEndpoint(JsonView):
             guardian_url_port=guardian,
             user_name=user_name,
         )
-        return {'ok': True, 'output_file': output_path, 'issued_vc': issued_vc}
+        return {"ok": True, "output_file": output_path, "issued_vc": issued_vc}

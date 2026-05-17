@@ -65,7 +65,9 @@ def create_wallet(name, user_name):
         )
 
 
-def register_signing_context(contract_id, user_name, *, path, description, extensible=False):
+def register_signing_context(
+    contract_id, user_name, *, path, description, extensible=False
+):
     """Register a new signing context (issuer) on a wallet's signature_authority."""
     state = get_state()
     with _op_lock:

@@ -11,8 +11,8 @@ Multi-segment context paths are still joined with ``/`` *inside* the fragment
 (e.g. ``did:pdo:<id>#foo/bar``).
 """
 
-DID_PREFIX = 'did:pdo:'
-PATH_SEP = '#'
+DID_PREFIX = "did:pdo:"
+PATH_SEP = "#"
 
 
 def parse_did(did):
@@ -29,7 +29,7 @@ def parse_did(did):
     if not did.startswith(DID_PREFIX):
         raise ValueError(f"Invalid PDO DID: {did!r}")
 
-    rest = did[len(DID_PREFIX):]
+    rest = did[len(DID_PREFIX) :]
     if PATH_SEP in rest:
         # rsplit so that any stray '#' inside the contract_id (shouldn't happen,
         # but defensively) stays on the contract_id side.
@@ -52,5 +52,5 @@ def make_did(contract_id, path=None):
     if not path:
         return f"{DID_PREFIX}{contract_id}"
     if isinstance(path, (list, tuple)):
-        path = '/'.join(path)
+        path = "/".join(path)
     return f"{DID_PREFIX}{contract_id}{PATH_SEP}{path}"
