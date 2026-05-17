@@ -1,2 +1,2 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-python $SCRIPT_DIR/manage.py runserver 8001
+python -u "$SCRIPT_DIR/manage.py" runserver 8001 > "$SCRIPT_DIR/runserver.log" 2>&1
