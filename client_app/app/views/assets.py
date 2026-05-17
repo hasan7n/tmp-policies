@@ -6,7 +6,13 @@ from django.shortcuts import get_object_or_404, render
 from .. import pdo_runner, registry_client
 from ..did_utils import make_did, parse_did
 from ..models import AppConfig, Entity
-from ._helpers import BaseView, JsonView, redirect_with_msg, require
+from ._helpers import (
+    BaseView,
+    JsonView,
+    ValidationError,
+    redirect_with_msg,
+    require,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +246,7 @@ class AssetUseEndpoint(JsonView):
 
         token_did = metadata.get("policy_contract", "")
         if not token_did:
-            raise ValueError(
+            raise ValidationError(
                 "Asset has not been exposed (no policy_contract in registry)."
             )
 

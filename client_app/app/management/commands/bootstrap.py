@@ -93,7 +93,7 @@ def _populate_service_registries(state, bindings):
             "--replicas",
             "1",
             "--duration",
-            "6000",
+            "999999999",
         ],
     )
 

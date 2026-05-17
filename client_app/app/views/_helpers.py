@@ -41,12 +41,21 @@ def redirect_with_msg(url, msg, msg_type="info"):
     return redirect(f"{url}{sep}{urlencode({'msg': msg, 'msg_type': msg_type})}")
 
 
+class ValidationError(Exception):
+    """Raised by JSON endpoints when the *client* payload is bad.
+
+    Distinct from any exception raised by PDO/contract code so JsonView can
+    map only this to 400 and treat everything else as 500.
+    """
+
+
 class JsonView(BaseView):
     """Base for POST-only JSON endpoints.
 
     Subclasses implement ``handle(request, data, **kwargs)`` and return a
-    JSON-serializable dict (or ``None`` for ``{"ok": true}``). Validation
-    errors should raise ``ValueError``; everything else becomes a 500.
+    JSON-serializable dict (or ``None`` for ``{"ok": true}``). Raise
+    ``ValidationError`` for client-side input problems (→ 400); any other
+    exception becomes a 500 with the message in ``{"error": ...}``.
     """
 
     http_method_names = ["post"]
@@ -62,7 +71,7 @@ class JsonView(BaseView):
 
         try:
             result = self.handle(request, data, *args, **kwargs)
-        except ValueError as e:
+        except ValidationError as e:
             return JsonResponse({"error": str(e)}, status=400)
         except Exception as e:
             logger.exception("JSON endpoint %s failed", self.__class__.__name__)
@@ -77,11 +86,11 @@ class JsonView(BaseView):
 
 
 def require(data, *keys):
-    """Pull required fields from a JSON payload, raising ValueError if missing."""
+    """Pull required fields from a JSON payload, raising ValidationError if missing."""
     out = []
     for k in keys:
         v = data.get(k)
         if v is None or (isinstance(v, str) and not v.strip()):
-            raise ValueError(f"missing required field: {k!r}")
+            raise ValidationError(f"missing required field: {k!r}")
         out.append(v.strip() if isinstance(v, str) else v)
     return out[0] if len(out) == 1 else tuple(out)

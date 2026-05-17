@@ -1,4 +1,3 @@
-import json
 import logging
 
 from django.shortcuts import get_object_or_404, render
@@ -6,7 +5,13 @@ from django.shortcuts import get_object_or_404, render
 from .. import pdo_runner, registry_client
 from ..did_utils import make_did, parse_did
 from ..models import AppConfig, Entity
-from ._helpers import BaseView, JsonView, redirect_with_msg, require
+from ._helpers import (
+    BaseView,
+    JsonView,
+    ValidationError,
+    redirect_with_msg,
+    require,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +102,7 @@ class WalletAddVCEndpoint(JsonView):
         wallet = _get_wallet(pk)
         vc = require(data, "vc")
         if not isinstance(vc, dict):
-            raise ValueError("'vc' must be a JSON object")
+            raise ValidationError("'vc' must be a JSON object")
 
         contract_id, _ = parse_did(wallet.did)
         pdo_runner.wallet_add_vc(contract_id, vc, AppConfig.get_instance().public_key)
@@ -115,7 +120,7 @@ class WalletRegisterIssuerEndpoint(JsonView):
 
         existing = {tuple(c.get("path", [])) for c in wallet.signing_contexts}
         if (name,) in existing:
-            raise ValueError(f"signing context {name!r} already registered")
+            raise ValidationError(f"signing context {name!r} already registered")
 
         contract_id, _ = parse_did(wallet.did)
         pdo_runner.register_signing_context(
@@ -158,11 +163,11 @@ class WalletSignCredentialEndpoint(JsonView):
         )
         claims = data.get("claims") or {}
         if not isinstance(claims, dict):
-            raise ValueError("'claims' must be a JSON object")
+            raise ValidationError("'claims' must be a JSON object")
 
         known_paths = {tuple(c.get("path", [])) for c in wallet.signing_contexts}
         if (signing_context,) not in known_paths:
-            raise ValueError(
+            raise ValidationError(
                 f"signing context {signing_context!r} not registered on this wallet"
             )
 
