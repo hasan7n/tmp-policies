@@ -15,7 +15,7 @@
     <div class="alert alert-error">{{ list_error }}</div>
     {% endif %}
 
-    <!-- Result of the most recent JS-driven use action. -->
+    <!-- Result of the most recent JS-driven use action (non-local cards). -->
     <div class="card" id="use-result-card" style="display:none; margin-bottom:1rem">
         <h2>Download Result</h2>
         <pre class="code-block" id="use-result-output"></pre>
@@ -29,12 +29,13 @@
             <div class="card-meta did-display">{{ a.did }}</div>
             <div class="card-actions">
                 {% if a.is_local %}
-                <a href="{% url 'asset_expose' pk=a.local_pk %}" class="btn btn-sm">Expose</a>
-                {% endif %}
+                <a href="{% url 'asset_dashboard' pk=a.local_pk %}" class="btn btn-sm btn-primary">Open</a>
+                {% else %}
                 <button type="button" class="btn btn-sm btn-primary"
                         data-action="open-use"
                         data-asset-did="{{ a.did }}"
                         data-asset-name="{{ a.name }}">Use</button>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -44,7 +45,7 @@
     {% endif %}
 </div>
 
-<!-- Use Asset Modal: submits via fetch, not a regular POST -->
+<!-- Use Asset Modal (for non-local assets only). -->
 <div id="use-modal" class="modal-backdrop hidden">
     <form class="modal" id="use-form">
         <input type="hidden" name="asset_did" id="use-asset-did" value="">

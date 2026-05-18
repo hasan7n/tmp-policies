@@ -148,7 +148,14 @@ def create_asset_policy(description, guardian_url_port, user_name):
             state, user_name, guardian_url_port
         )
         time.sleep(1)
-        download_token.register_trusted_issuer(state, token_id, policy_id, user_name)
+        download_token.register_trusted_issuer(
+            state,
+            token_id,
+            policy_id,
+            user_name,
+            credential_type="DownloadCredential",
+            path=["__ISSUER__"],
+        )
     return {"policy_contract_id": policy_id, "token_contract_id": token_id}
 
 
@@ -179,6 +186,30 @@ def register_policy_trusted_issuer(
             path=path,
             credential_type=credential_type,
         )
+
+
+def list_policy_trusted_issuers(policy_id, user_name):
+    """Return the policy agent's registered trusted issuers as a dict."""
+    state = get_state()
+    with _op_lock:
+        raw = policy_agent.list_trusted_issuers(state, policy_id, user_name)
+    if isinstance(raw, str):
+        return json.loads(raw) if raw else {}
+    return raw or {}
+
+
+def list_token_trusted_issuers(token_id, user_name):
+    """Return the download token's registered trusted issuers as a dict.
+
+    The single entry is the policy agent registered at expose-time; its
+    key is the policy agent's contract id.
+    """
+    state = get_state()
+    with _op_lock:
+        raw = download_token.list_trusted_issuers(state, token_id, user_name)
+    if isinstance(raw, str):
+        return json.loads(raw) if raw else {}
+    return raw or {}
 
 
 # ============================================================

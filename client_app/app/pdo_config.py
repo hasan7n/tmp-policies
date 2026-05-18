@@ -46,7 +46,7 @@ F_SERVICE_SITE_FILE = f"{PDO_HOME}/etc/sites/{F_SERVICE_HOST}.toml"
 F_SERVICE_GROUPS_DB_FILE = f"{SCRATCH_DIR}/groups_db"
 F_SERVICE_DB_FILE = f"{SCRATCH_DIR}/service_db"
 F_LOGFILE = os.environ.get("PDO_LOG_FILE", "__screen__")
-F_LOGLEVEL = os.environ.get("PDO_LOG_LEVEL", "warn")
+F_LOGLEVEL = os.environ.get("PDO_LOG_LEVEL", "debug")
 
 PREFERRED_ESERVICE_URL = "http://localhost:7101"
 

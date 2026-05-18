@@ -1,7 +1,9 @@
 from django.urls import path
 
 from .views.assets import (
+    AssetDashboardView,
     AssetExposeView,
+    AssetRegisterPolicyIssuerEndpoint,
     AssetSetupView,
     AssetsListView,
     AssetUseEndpoint,
@@ -24,6 +26,7 @@ urlpatterns = [
     # Assets (pages)
     path("", AssetsListView.as_view(), name="assets_page"),
     path("assets/setup/", AssetSetupView.as_view(), name="asset_setup"),
+    path("assets/<int:pk>/", AssetDashboardView.as_view(), name="asset_dashboard"),
     path("assets/<int:pk>/expose/", AssetExposeView.as_view(), name="asset_expose"),
     # Wallets (pages)
     path("wallets/", WalletsListView.as_view(), name="wallets"),
@@ -33,6 +36,11 @@ urlpatterns = [
     path("identity/set/", IdentitySetView.as_view(), name="identity_set"),
     # JSON endpoints
     path("api/assets/use/", AssetUseEndpoint.as_view(), name="api_asset_use"),
+    path(
+        "api/assets/<int:pk>/register-policy-issuer/",
+        AssetRegisterPolicyIssuerEndpoint.as_view(),
+        name="api_asset_register_policy_issuer",
+    ),
     path(
         "api/wallets/<int:pk>/add-vc/",
         WalletAddVCEndpoint.as_view(),

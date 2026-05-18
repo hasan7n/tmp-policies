@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}{{ entity.name }} — Asset — PDO Client{% endblock %}
+
+{% block content %}
+<div class="container"
+     data-asset-pk="{{ entity.pk }}"
+     data-asset-did="{{ entity.did }}">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ entity.name }}</h1>
+            <p class="subtitle">Asset dashboard</p>
+        </div>
+        <a href="/" class="btn">Back to Assets</a>
+    </div>
+
+    {% if registry_error %}
+    <div class="alert alert-error">{{ registry_error }}</div>
+    {% endif %}
+
+    <div class="card">
+        <h2>Asset Info</h2>
+        <table class="data-table" style="margin-top:0.75rem">
+            <tbody>
+                <tr><td><strong>Name</strong></td><td>{{ entity.name }}</td></tr>
+                <tr><td><strong>DID</strong></td><td class="did-display">{{ entity.did }}</td></tr>
+                <tr><td><strong>Contract</strong></td><td class="did-display">{{ entity.contract_name }}</td></tr>
+                <tr><td><strong>Owner</strong></td><td>{{ entity.owner_key }}</td></tr>
+                {% if has_policy %}
+                <tr><td><strong>Token contract id</strong></td><td class="did-display">{{ token_contract_id }}</td></tr>
+                <tr><td><strong>Policy contract id</strong></td><td class="did-display">{{ policy_contract_id }}</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if expose_result %}
+    <div class="card" style="margin-bottom:1rem">
+        <h2>Policy Created</h2>
+        <pre class="code-block">{{ expose_result }}</pre>
+    </div>
+    {% endif %}
+
+    <!-- Result of the most recent JS-driven use action. -->
+    <div class="card" id="use-result-card" style="display:none; margin-bottom:1rem">
+        <h2>Download Result</h2>
+        <pre class="code-block" id="use-result-output"></pre>
+    </div>
+
+    {% if has_policy %}
+    <!-- ===== Has policy agent: Use + Trusted Issuers ===== -->
+    <div class="card">
+        <div class="card-header" style="margin-bottom:0.75rem">
+            <h2 style="margin:0">Consume</h2>
+            <button type="button" class="btn btn-sm btn-primary"
+                    data-modal-open="use-modal">Use</button>
+        </div>
+        <p class="subtitle" style="margin-top:0">
+            Run the consumer download flow against this asset's policy.
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="margin-bottom:0.75rem">
+            <h2 style="margin:0">Trusted Issuers (Policy Agent)</h2>
+            <button type="button" class="btn btn-sm btn-primary"
+                    data-modal-open="register-policy-issuer-modal">+ Register Issuer</button>
+        </div>
+        <p class="subtitle" style="margin-top:0">
+            Signature authorities trusted by this policy agent to issue input
+            credentials of a given type.
+        </p>
+
+        {% if policy_issuers_error %}
+        <div class="alert alert-error">{{ policy_issuers_error }}</div>
+        {% endif %}
+
+        {% if policy_issuers %}
+        <table class="data-table">
+            <thead>
+                <tr><th>Issuer contract id</th><th>Details</th></tr>
+            </thead>
+            <tbody>
+                {% for issuer_id, info in policy_issuers.items %}
+                <tr>
+                    <td class="did-display">{{ issuer_id }}</td>
+                    <td><pre class="code-block" style="margin:0">{{ info|stringformat:'s' }}</pre></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#999">No trusted issuers registered yet.</p>
+        {% endif %}
+    </div>
+
+    {% else %}
+    <!-- ===== No policy agent yet: Expose form ===== -->
+    <div class="card">
+        <div class="card-header" style="margin-bottom:0.75rem">
+            <h2 style="margin:0">Expose</h2>
+            <button type="button" class="btn btn-sm btn-primary"
+                    data-modal-open="expose-modal">Expose</button>
+        </div>
+        <p class="subtitle" style="margin-top:0">
+            Create a download policy contract so others can access this asset.
+            Once exposed, the "Use" action and trusted-issuer management will
+            become available.
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ===== Modals ===== -->
+
+{% if has_policy %}
+<div id="use-modal" class="modal-backdrop hidden">
+    <form class="modal" id="use-form">
+        <input type="hidden" name="asset_did" id="use-asset-did" value="{{ entity.did }}">
+        <div class="modal-header">
+            <span class="modal-title">Use Asset: {{ entity.name }}</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="use-modal">&times;</button>
+        </div>
+        <div class="form-group">
+            <label for="use-wallet-select">Select Wallet</label>
+            <select id="use-wallet-select" name="wallet_pk" required>
+                {% for w in wallets %}
+                <option value="{{ w.pk }}">{{ w.name }}</option>
+                {% empty %}
+                <option value="">No wallets — create one first</option>
+                {% endfor %}
+            </select>
+            <small>The selected wallet must hold credentials required by this asset's policy.</small>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" {% if not wallets %}disabled{% endif %}>Request Download</button>
+            <button type="button" class="btn"
+                    data-modal-close="use-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<div id="register-policy-issuer-modal" class="modal-backdrop hidden">
+    <form class="modal" id="register-policy-issuer-form" style="max-width:480px">
+        <div class="modal-header">
+            <span class="modal-title">Register Trusted Issuer</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="register-policy-issuer-modal">&times;</button>
+        </div>
+        <div class="form-group">
+            <label for="rpi-issuer-did">Issuer DID</label>
+            <input type="text" id="rpi-issuer-did" name="issuer_did" required
+                   placeholder="did:pdo:&lt;contract_id&gt;#&lt;signing_context&gt;">
+            <small>Full DID of the signature authority + signing context path.</small>
+        </div>
+        <div class="form-group">
+            <label for="rpi-credential-type">Credential Type</label>
+            <input type="text" id="rpi-credential-type" name="credential_type" required
+                   placeholder="e.g. MembershipCredential">
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Register</button>
+            <button type="button" class="btn"
+                    data-modal-close="register-policy-issuer-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+
+{% else %}
+<div id="expose-modal" class="modal-backdrop hidden">
+    <form class="modal" id="expose-form" method="post"
+          action="{% url 'asset_expose' pk=entity.pk %}">
+        {% csrf_token %}
+        <div class="modal-header">
+            <span class="modal-title">Expose Asset</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="expose-modal">&times;</button>
+        </div>
+
+        {% if templates_error %}
+        <div class="alert alert-error">{{ templates_error }}</div>
+        {% endif %}
+
+        <div class="form-group">
+            <label for="id_policy_template">Policy Template</label>
+            <select id="id_policy_template" name="policy_template">
+                {% for t in templates %}
+                <option value="{{ t.id }}"
+                        data-schema='{{ t.policy_data_schema|safe }}'>{{ t.name }}</option>
+                {% empty %}
+                <option value="">No templates available</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="id_policy_data">Policy Data (JSON)</label>
+            <textarea id="id_policy_data" name="policy_data" class="mono" rows="8"
+                      placeholder='{"allowed_institutions": [], "consent_document": ""}'></textarea>
+            <small>Pre-filled from the selected template's schema.</small>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Create Policy &amp; Expose</button>
+            <button type="button" class="btn"
+                    data-modal-close="expose-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/asset_dashboard.js"></script>
+{% endblock %}
