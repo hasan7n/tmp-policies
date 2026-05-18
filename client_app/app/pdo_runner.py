@@ -19,7 +19,6 @@ import time
 # Importing pdo_config first ensures env vars are set before any pdo.* import.
 from . import pdo_config as cfg  # noqa: F401  (side-effect import)
 
-import pdo.identity.decentralized.identity as identity
 import pdo.identity.decentralized.signature_authority as signature_authority
 import pdo.download.decentralized.policy_agent as policy_agent
 import pdo.download.decentralized.download_token as download_token
@@ -87,7 +86,9 @@ def wallet_add_vc(contract_id, vc_dict, user_name):
     cred_path = _tmp_json(vc_dict)
     try:
         with _op_lock:
-            identity.add_vc(state, contract_id, user_name, credential_file=cred_path)
+            signature_authority.add_vc(
+                state, contract_id, user_name, credential_file=cred_path
+            )
     finally:
         _safe_unlink(cred_path)
 
@@ -96,7 +97,7 @@ def wallet_list_vcs(contract_id, user_name):
     """Return the wallet's stored VCs as a dict (type → vc)."""
     state = get_state()
     with _op_lock:
-        result = identity.get_vc_list(state, contract_id, user_name)
+        result = signature_authority.get_vc_list(state, contract_id, user_name)
     if isinstance(result, str):
         return json.loads(result) if result else {}
     return result or {}
@@ -221,7 +222,7 @@ def use_asset(*, wallet_id, token_id, guardian_url_port, user_name, output_dir=N
 
             creds_list = policy_agent.get_requirements(state, policy_id, user_name)
             time.sleep(1)
-            identity.get_vp(
+            signature_authority.get_vp(
                 state,
                 wallet_id,
                 user_name,
