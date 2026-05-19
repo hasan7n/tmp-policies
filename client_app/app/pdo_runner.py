@@ -267,7 +267,6 @@ def use_asset(*, wallet_id, token_id, guardian_url_port, user_name, output_dir=N
                 state,
                 wallet_id,
                 user_name,
-                save_file="vp.json",
                 types=creds_list,
                 output_file=vp_path,
             )
