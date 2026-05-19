@@ -245,6 +245,18 @@ textarea.mono { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0
 
 .form-actions { display: flex; gap: 0.75rem; margin-top: 1.4rem; align-items: center; flex-wrap: wrap; }
 
+.checkbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: #fafafa;
+}
+.checkbox-item { display: flex; align-items: center; gap: 0.5rem; font-weight: 400; margin: 0; }
+.checkbox-item input[type="checkbox"] { width: auto; margin: 0; }
+
 /* ===== Alerts ===== */
 .alert {
     padding: 0.75rem 1rem;

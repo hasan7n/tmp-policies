@@ -1,3 +1,4 @@
+import json
 import logging
 
 from django.shortcuts import get_object_or_404, render
@@ -70,6 +71,8 @@ class WalletDetailView(BaseView):
         templates, templates_error = [], None
         try:
             templates = registry_client.list_credential_templates()
+            for t in templates:
+                t["claims_schema_json"] = json.dumps(t.get("claims_schema") or {})
         except Exception as e:
             logger.exception("Failed to fetch credential templates")
             templates_error = str(e)

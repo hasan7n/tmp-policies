@@ -11,7 +11,7 @@ class PolicyTemplate(models.Model):
 
 class CredentialTemplate(models.Model):
     template_type = models.CharField(max_length=100, unique=True)
-    claims_keys = models.JSONField()
+    claims_schema = models.JSONField(default=dict)
 
     def __str__(self):
         return self.template_type

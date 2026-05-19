@@ -1,9 +1,9 @@
-// Asset dashboard: drives three interactions depending on whether the
+// Asset dashboard: drives four interactions depending on whether the
 // asset has been exposed yet.
-//   * No policy → Expose modal posts as a regular HTML form (server
-//     redirects back here on success).
-//   * Has policy → Use modal (JSON) and Register Trusted Issuer modal
-//     (JSON). Both reload the page on success.
+//   * No policy → Expose modal (HTML form, server redirects back here).
+//   * Has policy → Use modal (JSON), Register Trusted Issuer modal (JSON
+//     with multi-select credential types), and an inline Policy Data
+//     editor that PUTs through set_policy_data.
 
 (function () {
     function init() {
@@ -50,12 +50,24 @@
             });
         }
 
-        // ---- Register policy trusted issuer (JSON) ----
+        // ---- Register policy trusted issuer (checkbox credential types) ----
         var registerForm = document.getElementById('register-policy-issuer-form');
         if (registerForm) {
             registerForm.addEventListener('submit', async function (e) {
                 e.preventDefault();
-                var payload = window.formToObject(registerForm);
+                var credentialTypes = Array.from(
+                    registerForm.querySelectorAll(
+                        'input[name="credential_types"]:checked'
+                    )
+                ).map(function (cb) { return cb.value; });
+                if (credentialTypes.length === 0) {
+                    window.flash('Select at least one credential type.', 'error');
+                    return;
+                }
+                var payload = {
+                    issuer_did: document.getElementById('rpi-issuer-did').value.trim(),
+                    credential_types: credentialTypes,
+                };
                 try {
                     var res = await window.api.post(
                         '/api/assets/' + assetPk + '/register-policy-issuer/',
@@ -63,6 +75,35 @@
                     );
                     window.flash(res.message || 'Issuer registered.', 'success');
                     window.location.reload();
+                } catch (err) {
+                    window.flash(err.message, 'error');
+                }
+            });
+        }
+
+        // ---- Update policy data ----
+        var policyDataForm = document.getElementById('update-policy-data-form');
+        if (policyDataForm) {
+            policyDataForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                var raw = (document.getElementById('policy-data-textarea').value || '').trim();
+                var policyData;
+                try {
+                    policyData = raw ? JSON.parse(raw) : {};
+                } catch (err) {
+                    window.flash('Invalid JSON: ' + err.message, 'error');
+                    return;
+                }
+                if (typeof policyData !== 'object' || Array.isArray(policyData)) {
+                    window.flash('Policy data must be a JSON object.', 'error');
+                    return;
+                }
+                try {
+                    var res = await window.api.post(
+                        '/api/assets/' + assetPk + '/update-policy-data/',
+                        { policy_data: policyData }
+                    );
+                    window.flash(res.message || 'Policy data updated.', 'success');
                 } catch (err) {
                     window.flash(err.message, 'error');
                 }

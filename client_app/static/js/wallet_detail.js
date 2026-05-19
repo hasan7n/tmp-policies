@@ -48,12 +48,26 @@
         // The "Sign Credential" buttons on each issuer row open the modal
         // and stash the issuer's path; on submit we POST to the sign
         // endpoint and render the signed VC inline.
+        var templateSelect = document.getElementById('sign-template-select');
+        var claimsTextarea = document.getElementById('sign-claims-input');
+        function prefillClaims() {
+            if (!templateSelect || !claimsTextarea) return;
+            var opt = templateSelect.options[templateSelect.selectedIndex];
+            if (!opt) return;
+            try {
+                var schema = JSON.parse(opt.dataset.schema || '{}');
+                claimsTextarea.value = JSON.stringify(schema, null, 2);
+            } catch (e) { /* leave textarea untouched */ }
+        }
+        if (templateSelect) templateSelect.addEventListener('change', prefillClaims);
+
         document.addEventListener('click', function (e) {
             var btn = e.target.closest('[data-action="open-sign"]');
             if (!btn) return;
             document.getElementById('sign-signing-context').value = btn.dataset.path;
             document.getElementById('sign-issuer-name').textContent = btn.dataset.path;
             document.getElementById('sign-credential-modal').classList.remove('hidden');
+            prefillClaims();
         });
 
         var signForm = document.getElementById('sign-credential-form');

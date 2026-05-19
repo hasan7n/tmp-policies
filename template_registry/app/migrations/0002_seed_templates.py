@@ -31,7 +31,7 @@ def _seed(apps, schema_editor):
     for tpl in data.get("credential_templates", []):
         CredentialTemplate.objects.update_or_create(
             template_type=tpl["template_type"],
-            defaults={"claims_keys": tpl["claims_keys"]},
+            defaults={"claims_schema": tpl["claims_schema"]},
         )
 
 

@@ -6,6 +6,7 @@ from .views.assets import (
     AssetRegisterPolicyIssuerEndpoint,
     AssetSetupView,
     AssetsListView,
+    AssetUpdatePolicyDataEndpoint,
     AssetUseEndpoint,
 )
 from .views.config import ConfigPageView, IdentitySetView
@@ -40,6 +41,11 @@ urlpatterns = [
         "api/assets/<int:pk>/register-policy-issuer/",
         AssetRegisterPolicyIssuerEndpoint.as_view(),
         name="api_asset_register_policy_issuer",
+    ),
+    path(
+        "api/assets/<int:pk>/update-policy-data/",
+        AssetUpdatePolicyDataEndpoint.as_view(),
+        name="api_asset_update_policy_data",
     ),
     path(
         "api/wallets/<int:pk>/add-vc/",

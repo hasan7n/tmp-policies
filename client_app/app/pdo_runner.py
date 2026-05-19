@@ -153,7 +153,7 @@ def create_asset_policy(description, guardian_url_port, user_name):
             token_id,
             policy_id,
             user_name,
-            credential_type="DownloadCredential",
+            credential_types=["DownloadCredential"],
             path=["__ISSUER__"],
         )
     return {"policy_contract_id": policy_id, "token_contract_id": token_id}
@@ -170,11 +170,21 @@ def set_policy_data(policy_id, policy_data, user_name):
         _safe_unlink(data_path)
 
 
+def get_policy_data(policy_id, user_name):
+    """Return the policy agent's current policy data as a dict."""
+    state = get_state()
+    with _op_lock:
+        raw = policy_agent.get_policy_data(state, policy_id, user_name)
+    if isinstance(raw, str):
+        return json.loads(raw) if raw else {}
+    return raw or {}
+
+
 def register_policy_trusted_issuer(
-    policy_id, issuer_id, user_name, *, path, credential_type
+    policy_id, issuer_id, user_name, *, path, credential_types
 ):
     """Register a signature authority as a trusted issuer on a policy agent
-    for a given credential type at a given context path.
+    for one or more credential types at a given context path.
     """
     state = get_state()
     with _op_lock:
@@ -184,7 +194,7 @@ def register_policy_trusted_issuer(
             issuer_id,
             user_name,
             path=path,
-            credential_type=credential_type,
+            credential_types=credential_types,
         )
 
 

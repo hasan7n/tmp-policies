@@ -8,7 +8,6 @@
     <div class="page-header">
         <div>
             <h1 class="page-title">{{ entity.name }}</h1>
-            <p class="subtitle">Wallet — signature_authority contract</p>
         </div>
         <a href="/wallets/" class="btn">Back to Wallets</a>
     </div>
@@ -25,18 +24,12 @@
         </table>
     </div>
 
-    <!-- ===== Registered Issuers (signing contexts) ===== -->
     <div class="card">
         <div class="card-header" style="margin-bottom:0.75rem">
             <h2 style="margin:0">Registered Issuers</h2>
             <button type="button" class="btn btn-sm btn-primary"
                     data-modal-open="register-issuer-modal">+ Register Issuer</button>
         </div>
-        <p class="subtitle" style="margin-top:0">
-            Each issuer is a signing context registered on this wallet's
-            signature_authority. The issuer DID is
-            <code>{{ entity.did }}#&lt;path&gt;</code>.
-        </p>
 
         {% if signing_contexts %}
         <table class="data-table">
@@ -65,7 +58,6 @@
         {% endif %}
     </div>
 
-    <!-- ===== Stored Credentials ===== -->
     <div class="card">
         <div class="card-header" style="margin-bottom:0.75rem">
             <h2 style="margin:0">Stored Credentials</h2>
@@ -92,14 +84,12 @@
         {% endif %}
     </div>
 
-    <!-- ===== Last signed VC (rendered after a JS sign action) ===== -->
     <div class="card" id="signed-vc-card" style="display:none">
         <h2>Signed Credential</h2>
         <pre class="code-block" id="signed-vc-output"></pre>
     </div>
 </div>
 
-<!-- ===== Modals ===== -->
 <div id="register-issuer-modal" class="modal-backdrop hidden">
     <form class="modal" style="max-width:440px" id="register-issuer-form">
         <div class="modal-header">
@@ -108,10 +98,9 @@
                     data-modal-close="register-issuer-modal">&times;</button>
         </div>
         <div class="form-group">
-            <label for="issuer-name-input">Issuer Name (signing context path)</label>
+            <label for="issuer-name-input">Name</label>
             <input type="text" id="issuer-name-input" name="name"
                    placeholder="e.g. university_issuer" required>
-            <small>No spaces. Used as the issuer's path segment in DIDs.</small>
         </div>
         <div class="form-group">
             <label for="issuer-desc-input">Description</label>
@@ -135,9 +124,7 @@
         </div>
         <div class="form-group">
             <label for="vc-json-input">Credential JSON</label>
-            <textarea id="vc-json-input" name="vc_json" class="mono" rows="12" required
-                      placeholder='{"type": ["membership"], "issuer": {...}, "credentialSubject": {...}}'></textarea>
-            <small>Paste the complete VC JSON here.</small>
+            <textarea id="vc-json-input" name="vc_json" class="mono" rows="12" required></textarea>
         </div>
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Add Credential</button>
@@ -164,7 +151,8 @@
             <label for="sign-template-select">Credential Template</label>
             <select id="sign-template-select" name="template_type" required>
                 {% for t in templates %}
-                <option value="{{ t.template_type }}">{{ t.template_type }}</option>
+                <option value="{{ t.template_type }}"
+                        data-schema="{{ t.claims_schema_json }}">{{ t.template_type }}</option>
                 {% empty %}
                 <option value="">No templates available</option>
                 {% endfor %}
@@ -175,14 +163,11 @@
             <label for="sign-subject-did">Subject DID</label>
             <input type="text" id="sign-subject-did" name="subject_did" required
                    placeholder="did:pdo:abc123...">
-            <small>The DID of the wallet that will receive this credential.</small>
         </div>
 
         <div class="form-group">
-            <label for="sign-claims-input">Claims (JSON)</label>
-            <textarea id="sign-claims-input" name="claims" class="mono" rows="5"
-                      placeholder='{"member_of": "ExampleOrg"}'></textarea>
-            <small>Keys depend on the template.</small>
+            <label for="sign-claims-input">Claims</label>
+            <textarea id="sign-claims-input" name="claims" class="mono" rows="5"></textarea>
         </div>
 
         <div class="form-actions">

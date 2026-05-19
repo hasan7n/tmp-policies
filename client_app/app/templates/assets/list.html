@@ -6,7 +6,6 @@
     <div class="page-header">
         <div>
             <h1 class="page-title">Assets</h1>
-            <p class="subtitle">Browse and interact with registered data assets.</p>
         </div>
         <a href="/assets/setup/" class="btn btn-primary">+ Register Asset</a>
     </div>
@@ -55,7 +54,7 @@
                     data-modal-close="use-modal">&times;</button>
         </div>
         <div class="form-group">
-            <label for="use-wallet-select">Select Wallet</label>
+            <label for="use-wallet-select">Wallet</label>
             <select id="use-wallet-select" name="wallet_pk" required>
                 {% for w in wallets %}
                 <option value="{{ w.pk }}">{{ w.name }}</option>
@@ -63,7 +62,6 @@
                 <option value="">No wallets — create one first</option>
                 {% endfor %}
             </select>
-            <small>The selected wallet must hold credentials required by this asset's policy.</small>
         </div>
         <div class="form-actions">
             <button type="submit" class="btn btn-primary" {% if not wallets %}disabled{% endif %}>Request Download</button>

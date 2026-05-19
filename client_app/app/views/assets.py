@@ -162,9 +162,13 @@ class AssetDashboardView(BaseView):
             "token_contract_id": None,
             "policy_issuers": {},
             "policy_issuers_error": None,
+            "policy_data": {},
+            "policy_data_json": "",
+            "policy_data_error": None,
             "templates": [],
             "templates_error": None,
-            "expose_result": request.session.pop("last_expose_result", None),
+            "credential_templates": [],
+            "credential_templates_error": None,
         }
 
         # Pull the registry record to discover the (token-DID-shaped)
@@ -199,10 +203,30 @@ class AssetDashboardView(BaseView):
                 except Exception as e:
                     logger.exception("Failed to list policy trusted issuers")
                     ctx["policy_issuers_error"] = str(e)
+                try:
+                    ctx["policy_data"] = pdo_runner.get_policy_data(
+                        policy_id, user_name
+                    )
+                    ctx["policy_data_json"] = json.dumps(ctx["policy_data"], indent=2)
+                except Exception as e:
+                    logger.exception("Failed to get policy data")
+                    ctx["policy_data_error"] = str(e)
+                    ctx["policy_data_json"] = ""
+                try:
+                    ctx["credential_templates"] = (
+                        registry_client.list_credential_templates()
+                    )
+                except Exception as e:
+                    logger.exception("Failed to fetch credential templates")
+                    ctx["credential_templates_error"] = str(e)
 
         if not ctx["has_policy"]:
             try:
                 ctx["templates"] = registry_client.list_policy_templates()
+                for t in ctx["templates"]:
+                    t["policy_data_schema_json"] = json.dumps(
+                        t.get("policy_data_schema") or {}
+                    )
             except Exception as e:
                 logger.exception("Failed to fetch policy templates")
                 ctx["templates_error"] = str(e)
@@ -283,14 +307,6 @@ class AssetExposeView(BaseView):
                 dashboard_url, f"Failed to expose asset: {e}", "error"
             )
 
-        request.session["last_expose_result"] = json.dumps(
-            {
-                "policy_contract_id": result["policy_contract_id"],
-                "token_contract_id": result["token_contract_id"],
-                "token_did": token_did,
-            },
-            indent=2,
-        )
         return redirect_with_msg(
             dashboard_url, "Asset exposed via download policy.", "success"
         )
@@ -336,16 +352,22 @@ class AssetUseEndpoint(JsonView):
 
 
 class AssetRegisterPolicyIssuerEndpoint(JsonView):
-    """POST {issuer_did, credential_type} — register a signature authority
-    (identified by its DID, optionally with a ``#path`` signing context) as
-    a trusted issuer of ``credential_type`` on the asset's policy agent.
+    """POST {issuer_did, credential_types: [...]} — register a signature
+    authority (identified by its DID, optionally with a ``#path`` signing
+    context) as a trusted issuer for one or more credential types on the
+    asset's policy agent.
     """
 
     def handle(self, request, data, pk):
         entity = get_object_or_404(Entity, pk=pk, entity_type="ASSET")
         user_name = AppConfig.get_instance().public_key
 
-        issuer_did, credential_type = require(data, "issuer_did", "credential_type")
+        issuer_did = require(data, "issuer_did")
+        credential_types = data.get("credential_types")
+        if not isinstance(credential_types, list) or not credential_types:
+            raise ValidationError(
+                "'credential_types' must be a non-empty list of strings"
+            )
 
         try:
             issuer_contract_id, issuer_path = parse_did(issuer_did)
@@ -371,9 +393,48 @@ class AssetRegisterPolicyIssuerEndpoint(JsonView):
             issuer_contract_id,
             user_name,
             path=path,
-            credential_type=credential_type,
+            credential_types=credential_types,
         )
         return {
             "ok": True,
-            "message": f'Issuer registered for "{credential_type}".',
+            "message": "Issuer registered for: " + ", ".join(credential_types),
         }
+
+
+class AssetUpdatePolicyDataEndpoint(JsonView):
+    """POST {policy_data: {...}} — call set_policy_data on the asset's policy
+    agent. Also mirrors the new data into the asset registry metadata so the
+    list view's policy_data field stays in sync.
+    """
+
+    def handle(self, request, data, pk):
+        entity = get_object_or_404(Entity, pk=pk, entity_type="ASSET")
+        user_name = AppConfig.get_instance().public_key
+
+        policy_data = data.get("policy_data")
+        if not isinstance(policy_data, dict):
+            raise ValidationError("'policy_data' must be a JSON object")
+
+        try:
+            asset = registry_client.get_asset_by_did(entity.did) or {}
+        except Exception as e:
+            raise ValidationError(f"failed to look up asset in registry: {e}")
+        token_did = (asset.get("metadata", {}) or {}).get("policy_contract", "")
+        if not token_did:
+            raise ValidationError("Asset has no policy agent yet (expose it first).")
+
+        token_id, _ = parse_did(token_did)
+        policy_id = _resolve_policy_id(token_id, user_name)
+        if not policy_id:
+            raise ValidationError("Token contract has no registered policy agent.")
+
+        pdo_runner.set_policy_data(policy_id, policy_data, user_name)
+
+        try:
+            registry_client.update_asset_metadata_by_did(
+                entity.did, {"policy_data": policy_data}
+            )
+        except Exception:
+            logger.exception("Failed to mirror policy_data into registry metadata")
+
+        return {"ok": True, "message": "Policy data updated."}

@@ -18,7 +18,7 @@ def _credential_to_dict(tpl):
     return {
         "id": tpl.pk,
         "template_type": tpl.template_type,
-        "claims_keys": tpl.claims_keys,
+        "claims_schema": tpl.claims_schema,
     }
 
 
@@ -76,10 +76,10 @@ def credentials_list_create(request):
             return JsonResponse({"error": "Invalid JSON"}, status=400)
 
         template_type = data.get("template_type", "").strip()
-        claims_keys = data.get("claims_keys")
-        if not template_type or claims_keys is None:
+        claims_schema = data.get("claims_schema")
+        if not template_type or claims_schema is None:
             return JsonResponse(
-                {"error": "template_type and claims_keys are required"}, status=400
+                {"error": "template_type and claims_schema are required"}, status=400
             )
 
         if CredentialTemplate.objects.filter(template_type=template_type).exists():
@@ -90,7 +90,7 @@ def credentials_list_create(request):
 
         tpl = CredentialTemplate.objects.create(
             template_type=template_type,
-            claims_keys=claims_keys,
+            claims_schema=claims_schema,
         )
         return JsonResponse(_credential_to_dict(tpl), status=201)
 
