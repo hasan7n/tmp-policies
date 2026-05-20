@@ -80,6 +80,23 @@ def register_signing_context(
         )
 
 
+def wallet_list_signing_contexts(contract_id, user_name, path=None):
+    """Return the wallet's registered signing contexts as a list.
+
+    Each entry is ``{"path": [..], "description": "..", "extensible": bool}``.
+    """
+    state = get_state()
+    with _op_lock:
+        raw = signature_authority.list_signing_contexts(
+            state, contract_id, user_name, path=path or [],
+        )
+    if isinstance(raw, str):
+        parsed = json.loads(raw) if raw else {}
+    else:
+        parsed = raw or {}
+    return parsed.get("contexts", []) if isinstance(parsed, dict) else []
+
+
 def wallet_add_vc(contract_id, vc_dict, user_name):
     """Add a verifiable credential to a wallet."""
     state = get_state()

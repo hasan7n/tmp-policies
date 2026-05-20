@@ -29,12 +29,11 @@ class Entity(models.Model):
     """A PDO contract owned by this client.
 
     A wallet is a signature_authority contract. Issuers are not a distinct
-    entity — they are signing contexts registered inside a wallet, tracked
-    locally in ``extra_data['signing_contexts']`` as a list of
-    ``{"path": [..], "description": "..", "extensible": bool}`` dicts.
+    entity — they are signing contexts registered inside a wallet, and are
+    read on demand from the contract via ``list_signing_contexts``.
 
-    For ASSET entities, ``extra_data`` additionally holds policy/token
-    contract ids and guardian connection info.
+    For ASSET entities, ``extra_data`` holds policy/token contract ids and
+    guardian connection info.
     """
 
     ENTITY_TYPES = [
@@ -55,12 +54,3 @@ class Entity(models.Model):
 
     def __str__(self):
         return f"{self.entity_type}:{self.name}"
-
-    @property
-    def signing_contexts(self):
-        """Return the list of signing contexts registered on this wallet."""
-        return (
-            self.extra_data.get("signing_contexts", [])
-            if self.entity_type == "WALLET"
-            else []
-        )

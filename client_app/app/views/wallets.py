@@ -47,7 +47,6 @@ class WalletsListView(BaseView):
             entity_type="WALLET",
             contract_name=f"identity.{name}.signature_authority",
             owner_key=user_name,
-            extra_data={"signing_contexts": []},
         )
         return redirect_with_msg("/wallets/", f'Wallet "{name}" created.', "success")
 
@@ -59,10 +58,19 @@ class WalletDetailView(BaseView):
     def get(self, request, pk):
         wallet = get_object_or_404(Entity, pk=pk, entity_type="WALLET")
         user_name = AppConfig.get_instance().public_key
+        contract_id, _ = parse_did(wallet.did)
+
+        signing_contexts, signing_contexts_error = [], None
+        try:
+            signing_contexts = pdo_runner.wallet_list_signing_contexts(
+                contract_id, user_name
+            )
+        except Exception as e:
+            logger.exception("Failed to list signing contexts")
+            signing_contexts_error = str(e)
 
         vcs, vcs_error = {}, None
         try:
-            contract_id, _ = parse_did(wallet.did)
             vcs = pdo_runner.wallet_list_vcs(contract_id, user_name)
         except Exception as e:
             logger.exception("Failed to list wallet VCs")
@@ -82,7 +90,8 @@ class WalletDetailView(BaseView):
             "wallets/detail.html",
             {
                 "entity": wallet,
-                "signing_contexts": wallet.signing_contexts,
+                "signing_contexts": signing_contexts,
+                "signing_contexts_error": signing_contexts_error,
                 "vcs": vcs,
                 "vcs_error": vcs_error,
                 "templates": templates,
@@ -121,10 +130,6 @@ class WalletRegisterIssuerEndpoint(JsonView):
         description = (data.get("description") or "").strip() or f"issuer {name}"
         extensible = bool(data.get("extensible", False))
 
-        existing = {tuple(c.get("path", [])) for c in wallet.signing_contexts}
-        if (name,) in existing:
-            raise ValidationError(f"signing context {name!r} already registered")
-
         contract_id, _ = parse_did(wallet.did)
         pdo_runner.register_signing_context(
             contract_id,
@@ -133,13 +138,6 @@ class WalletRegisterIssuerEndpoint(JsonView):
             description=description,
             extensible=extensible,
         )
-
-        ctxs = list(wallet.signing_contexts)
-        ctxs.append(
-            {"path": [name], "description": description, "extensible": extensible}
-        )
-        wallet.extra_data["signing_contexts"] = ctxs
-        wallet.save(update_fields=["extra_data"])
 
         return {
             "ok": True,
@@ -167,12 +165,6 @@ class WalletSignCredentialEndpoint(JsonView):
         claims = data.get("claims") or {}
         if not isinstance(claims, dict):
             raise ValidationError("'claims' must be a JSON object")
-
-        known_paths = {tuple(c.get("path", [])) for c in wallet.signing_contexts}
-        if (signing_context,) not in known_paths:
-            raise ValidationError(
-                f"signing context {signing_context!r} not registered on this wallet"
-            )
 
         sa_contract_id, _ = parse_did(wallet.did)
         subject_contract_id, _ = parse_did(subject_did)

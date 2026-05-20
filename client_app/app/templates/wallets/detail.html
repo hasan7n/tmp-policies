@@ -31,7 +31,9 @@
                     data-modal-open="register-issuer-modal">+ Register Issuer</button>
         </div>
 
-        {% if signing_contexts %}
+        {% if signing_contexts_error %}
+        <div class="alert alert-error">{{ signing_contexts_error }}</div>
+        {% elif signing_contexts %}
         <table class="data-table">
             <thead>
                 <tr>
