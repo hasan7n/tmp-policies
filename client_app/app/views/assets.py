@@ -33,6 +33,29 @@ def _resolve_policy_id(token_contract_id, user_name):
     return next(iter(issuers.keys()))
 
 
+def _flatten_policy_issuers(raw_issuers):
+    """Flatten the policy agent's trusted-issuer map into display rows.
+
+    ``raw_issuers`` is shaped as ``{contract_id: [entry, ...]}`` where each
+    entry has ``verifying_context.prefix_path`` and ``credential_types``.
+    Returns a list of ``{"did", "credential_types"}`` dicts, one per
+    (contract_id, prefix_path) pair.
+    """
+    rows = []
+    for contract_id, entries in (raw_issuers or {}).items():
+        for entry in entries or []:
+            prefix_path = (
+                (entry.get("verifying_context") or {}).get("prefix_path") or []
+            )
+            rows.append(
+                {
+                    "did": make_did(contract_id, prefix_path),
+                    "credential_types": entry.get("credential_types") or [],
+                }
+            )
+    return rows
+
+
 class AssetsListView(BaseView):
     """GET-only: list all assets in the registry, annotated with local entity info."""
 
@@ -160,7 +183,7 @@ class AssetDashboardView(BaseView):
             "has_policy": False,
             "policy_contract_id": None,
             "token_contract_id": None,
-            "policy_issuers": {},
+            "policy_issuers": [],
             "policy_issuers_error": None,
             "policy_data": {},
             "policy_data_json": "",
@@ -197,9 +220,10 @@ class AssetDashboardView(BaseView):
                 ctx["policy_contract_id"] = policy_id
                 ctx["token_contract_id"] = token_id
                 try:
-                    ctx["policy_issuers"] = pdo_runner.list_policy_trusted_issuers(
+                    raw_issuers = pdo_runner.list_policy_trusted_issuers(
                         policy_id, user_name
                     )
+                    ctx["policy_issuers"] = _flatten_policy_issuers(raw_issuers)
                 except Exception as e:
                     logger.exception("Failed to list policy trusted issuers")
                     ctx["policy_issuers_error"] = str(e)

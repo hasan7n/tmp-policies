@@ -75,13 +75,13 @@
         {% if policy_issuers %}
         <table class="data-table">
             <thead>
-                <tr><th>Issuer contract id</th><th>Details</th></tr>
+                <tr><th>Issuer DID</th><th>Credential types</th></tr>
             </thead>
             <tbody>
-                {% for issuer_id, info in policy_issuers.items %}
+                {% for row in policy_issuers %}
                 <tr>
-                    <td class="did-display">{{ issuer_id }}</td>
-                    <td><pre class="code-block" style="margin:0">{{ info|stringformat:'s' }}</pre></td>
+                    <td class="did-display">{{ row.did }}</td>
+                    <td>{{ row.credential_types|join:", " }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
