@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}{{ entity.name }} — Asset — PDO Client{% endblock %}
+{% block title %}{{ asset.name }} — Asset — PDO Client{% endblock %}
 
 {% block content %}
 <div class="container"
-     data-asset-pk="{{ entity.pk }}"
-     data-asset-did="{{ entity.did }}">
+     data-asset-contract-id="{{ asset.contract_id }}"
+     data-asset-did="{{ asset.did }}">
     <div class="page-header">
         <div>
-            <h1 class="page-title">{{ entity.name }}</h1>
+            <h1 class="page-title">{{ asset.name }}</h1>
         </div>
         <a href="/" class="btn">Back to Assets</a>
     </div>
@@ -20,10 +20,9 @@
         <h2>Asset Info</h2>
         <table class="data-table" style="margin-top:0.75rem">
             <tbody>
-                <tr><td><strong>Name</strong></td><td>{{ entity.name }}</td></tr>
-                <tr><td><strong>DID</strong></td><td class="did-display">{{ entity.did }}</td></tr>
-                <tr><td><strong>Contract</strong></td><td class="did-display">{{ entity.contract_name }}</td></tr>
-                <tr><td><strong>Owner</strong></td><td>{{ entity.owner_key }}</td></tr>
+                <tr><td><strong>Name</strong></td><td>{{ asset.name }}</td></tr>
+                <tr><td><strong>DID</strong></td><td class="did-display">{{ asset.did }}</td></tr>
+                <tr><td><strong>Contract id</strong></td><td class="did-display">{{ asset.contract_id }}</td></tr>
                 {% if has_policy %}
                 <tr><td><strong>Token contract id</strong></td><td class="did-display">{{ token_contract_id }}</td></tr>
                 <tr><td><strong>Policy contract id</strong></td><td class="did-display">{{ policy_contract_id }}</td></tr>
@@ -105,17 +104,17 @@
 {% if has_policy %}
 <div id="use-modal" class="modal-backdrop hidden">
     <form class="modal" id="use-form">
-        <input type="hidden" name="asset_did" id="use-asset-did" value="{{ entity.did }}">
+        <input type="hidden" name="asset_did" id="use-asset-did" value="{{ asset.did }}">
         <div class="modal-header">
-            <span class="modal-title">Use Asset: {{ entity.name }}</span>
+            <span class="modal-title">Use Asset: {{ asset.name }}</span>
             <button type="button" class="modal-close"
                     data-modal-close="use-modal">&times;</button>
         </div>
         <div class="form-group">
             <label for="use-wallet-select">Wallet</label>
-            <select id="use-wallet-select" name="wallet_pk" required>
+            <select id="use-wallet-select" name="wallet_id" required>
                 {% for w in wallets %}
-                <option value="{{ w.pk }}">{{ w.name }}</option>
+                <option value="{{ w.contract_id }}">{{ w.name }}</option>
                 {% empty %}
                 <option value="">No wallets — create one first</option>
                 {% endfor %}
@@ -171,7 +170,7 @@
 {% else %}
 <div id="expose-modal" class="modal-backdrop hidden">
     <form class="modal" id="expose-form" method="post"
-          action="{% url 'asset_expose' pk=entity.pk %}">
+          action="{% url 'asset_expose' contract_id=asset.contract_id %}">
         {% csrf_token %}
         <div class="modal-header">
             <span class="modal-title">Expose Asset</span>

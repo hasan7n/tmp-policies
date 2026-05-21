@@ -28,7 +28,7 @@
             <div class="card-meta did-display">{{ a.did }}</div>
             <div class="card-actions">
                 {% if a.is_local %}
-                <a href="{% url 'asset_dashboard' pk=a.local_pk %}" class="btn btn-sm btn-primary">Open</a>
+                <a href="{% url 'asset_dashboard' contract_id=a.contract_id %}" class="btn btn-sm btn-primary">Open</a>
                 {% else %}
                 <button type="button" class="btn btn-sm btn-primary"
                         data-action="open-use"
@@ -55,9 +55,9 @@
         </div>
         <div class="form-group">
             <label for="use-wallet-select">Wallet</label>
-            <select id="use-wallet-select" name="wallet_pk" required>
+            <select id="use-wallet-select" name="wallet_id" required>
                 {% for w in wallets %}
-                <option value="{{ w.pk }}">{{ w.name }}</option>
+                <option value="{{ w.contract_id }}">{{ w.name }}</option>
                 {% empty %}
                 <option value="">No wallets — create one first</option>
                 {% endfor %}

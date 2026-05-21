@@ -23,34 +23,3 @@ class AppConfig(models.Model):
 
     def __str__(self):
         return f"AppConfig(pk={self.pk})"
-
-
-class Entity(models.Model):
-    """A PDO contract owned by this client.
-
-    A wallet is a signature_authority contract. Issuers are not a distinct
-    entity — they are signing contexts registered inside a wallet, and are
-    read on demand from the contract via ``list_signing_contexts``.
-
-    For ASSET entities, ``extra_data`` holds policy/token contract ids and
-    guardian connection info.
-    """
-
-    ENTITY_TYPES = [
-        ("WALLET", "Wallet"),
-        ("ASSET", "Asset"),
-    ]
-
-    did = models.CharField(max_length=500, unique=True)
-    name = models.CharField(max_length=200)
-    entity_type = models.CharField(max_length=20, choices=ENTITY_TYPES)
-    contract_name = models.CharField(max_length=200, default="")
-    owner_key = models.TextField(default="")
-
-    save_basename = models.CharField(max_length=200, default="")
-    save_blob = models.BinaryField(default=b"")
-
-    extra_data = models.JSONField(default=dict, blank=True)
-
-    def __str__(self):
-        return f"{self.entity_type}:{self.name}"

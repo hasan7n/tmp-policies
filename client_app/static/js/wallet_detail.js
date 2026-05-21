@@ -5,10 +5,11 @@
 
 (function () {
     function init() {
-        var container = document.querySelector('[data-wallet-pk]');
+        var container = document.querySelector('[data-wallet-contract-id]');
         if (!container) return;
-        var walletPk = container.dataset.walletPk;
+        var walletId = container.dataset.walletContractId;
         var walletDid = container.dataset.walletDid;
+        var encodedId = encodeURIComponent(walletId);
 
         // ---- Register issuer ----
         var registerForm = document.getElementById('register-issuer-form');
@@ -17,7 +18,7 @@
             var payload = window.formToObject(registerForm);
             try {
                 var res = await window.api.post(
-                    '/api/wallets/' + walletPk + '/register-issuer/', payload);
+                    '/api/wallets/' + encodedId + '/register-issuer/', payload);
                 window.flash(res.message || 'Issuer registered.', 'success');
                 window.location.reload();
             } catch (err) {
@@ -36,7 +37,7 @@
             catch (err) { window.flash('Invalid JSON: ' + err.message, 'error'); return; }
             try {
                 await window.api.post(
-                    '/api/wallets/' + walletPk + '/add-vc/', { vc: vc });
+                    '/api/wallets/' + encodedId + '/add-vc/', { vc: vc });
                 window.flash('Credential added.', 'success');
                 window.location.reload();
             } catch (err) {
@@ -90,7 +91,7 @@
             };
             try {
                 var res = await window.api.post(
-                    '/api/wallets/' + walletPk + '/sign-credential/', payload);
+                    '/api/wallets/' + encodedId + '/sign-credential/', payload);
                 document.getElementById('sign-credential-modal').classList.add('hidden');
                 var out = document.getElementById('signed-vc-output');
                 out.textContent = JSON.stringify(res.signed_vc, null, 2);

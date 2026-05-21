@@ -7,9 +7,10 @@
 
 (function () {
     function init() {
-        var container = document.querySelector('[data-asset-pk]');
+        var container = document.querySelector('[data-asset-contract-id]');
         if (!container) return;
-        var assetPk = container.dataset.assetPk;
+        var assetId = container.dataset.assetContractId;
+        var encodedId = encodeURIComponent(assetId);
 
         // ---- Expose: prefill policy_data from selected template's schema ----
         var templateSelect = document.getElementById('id_policy_template');
@@ -70,7 +71,7 @@
                 };
                 try {
                     var res = await window.api.post(
-                        '/api/assets/' + assetPk + '/register-policy-issuer/',
+                        '/api/assets/' + encodedId + '/register-policy-issuer/',
                         payload
                     );
                     window.flash(res.message || 'Issuer registered.', 'success');
@@ -100,7 +101,7 @@
                 }
                 try {
                     var res = await window.api.post(
-                        '/api/assets/' + assetPk + '/update-policy-data/',
+                        '/api/assets/' + encodedId + '/update-policy-data/',
                         { policy_data: policyData }
                     );
                     window.flash(res.message || 'Policy data updated.', 'success');

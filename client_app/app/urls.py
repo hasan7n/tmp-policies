@@ -23,42 +23,58 @@ from .views.wallets import (
 #     (then redirects). Used when a page has at most one logical action.
 #   * /api/... endpoints: POST-only, accept and return JSON. Used by JS
 #     for pages where multiple distinct actions are possible.
+#
+# Wallets/assets are addressed by their on-ledger contract_id. Path
+# converter is `path` (not `str`) because PDO contract ids are base64-
+# encoded hashes and may contain '/'.
 urlpatterns = [
     # Assets (pages)
     path("", AssetsListView.as_view(), name="assets_page"),
     path("assets/setup/", AssetSetupView.as_view(), name="asset_setup"),
-    path("assets/<int:pk>/", AssetDashboardView.as_view(), name="asset_dashboard"),
-    path("assets/<int:pk>/expose/", AssetExposeView.as_view(), name="asset_expose"),
+    path(
+        "assets/<path:contract_id>/",
+        AssetDashboardView.as_view(),
+        name="asset_dashboard",
+    ),
+    path(
+        "assets/<path:contract_id>/expose/",
+        AssetExposeView.as_view(),
+        name="asset_expose",
+    ),
     # Wallets (pages)
     path("wallets/", WalletsListView.as_view(), name="wallets"),
-    path("wallets/<int:pk>/", WalletDetailView.as_view(), name="wallet_detail"),
+    path(
+        "wallets/<path:contract_id>/",
+        WalletDetailView.as_view(),
+        name="wallet_detail",
+    ),
     # Config + identity (pages)
     path("config/", ConfigPageView.as_view(), name="config"),
     path("identity/set/", IdentitySetView.as_view(), name="identity_set"),
     # JSON endpoints
     path("api/assets/use/", AssetUseEndpoint.as_view(), name="api_asset_use"),
     path(
-        "api/assets/<int:pk>/register-policy-issuer/",
+        "api/assets/<path:contract_id>/register-policy-issuer/",
         AssetRegisterPolicyIssuerEndpoint.as_view(),
         name="api_asset_register_policy_issuer",
     ),
     path(
-        "api/assets/<int:pk>/update-policy-data/",
+        "api/assets/<path:contract_id>/update-policy-data/",
         AssetUpdatePolicyDataEndpoint.as_view(),
         name="api_asset_update_policy_data",
     ),
     path(
-        "api/wallets/<int:pk>/add-vc/",
+        "api/wallets/<path:contract_id>/add-vc/",
         WalletAddVCEndpoint.as_view(),
         name="api_wallet_add_vc",
     ),
     path(
-        "api/wallets/<int:pk>/register-issuer/",
+        "api/wallets/<path:contract_id>/register-issuer/",
         WalletRegisterIssuerEndpoint.as_view(),
         name="api_wallet_register_issuer",
     ),
     path(
-        "api/wallets/<int:pk>/sign-credential/",
+        "api/wallets/<path:contract_id>/sign-credential/",
         WalletSignCredentialEndpoint.as_view(),
         name="api_wallet_sign_credential",
     ),

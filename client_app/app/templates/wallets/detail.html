@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}{{ entity.name }} — Wallet — PDO Client{% endblock %}
+{% block title %}{{ wallet.name }} — Wallet — PDO Client{% endblock %}
 
 {% block content %}
 <div class="container"
-     data-wallet-pk="{{ entity.pk }}"
-     data-wallet-did="{{ entity.did }}">
+     data-wallet-contract-id="{{ wallet.contract_id }}"
+     data-wallet-did="{{ wallet.did }}">
     <div class="page-header">
         <div>
-            <h1 class="page-title">{{ entity.name }}</h1>
+            <h1 class="page-title">{{ wallet.name }}</h1>
         </div>
         <a href="/wallets/" class="btn">Back to Wallets</a>
     </div>
@@ -16,10 +16,8 @@
         <h2>Wallet Info</h2>
         <table class="data-table" style="margin-top:0.75rem">
             <tbody>
-                <tr><td><strong>Name</strong></td><td>{{ entity.name }}</td></tr>
-                <tr><td><strong>DID</strong></td><td class="did-display">{{ entity.did }}</td></tr>
-                <tr><td><strong>Contract</strong></td><td class="did-display">{{ entity.contract_name }}</td></tr>
-                <tr><td><strong>Owner</strong></td><td>{{ entity.owner_key }}</td></tr>
+                <tr><td><strong>DID</strong></td><td class="did-display">{{ wallet.did }}</td></tr>
+                <tr><td><strong>Contract id</strong></td><td class="did-display">{{ wallet.contract_id }}</td></tr>
             </tbody>
         </table>
     </div>
@@ -44,7 +42,7 @@
                 {% for c in signing_contexts %}
                 <tr>
                     <td><strong>{{ c.path|join:"/" }}</strong></td>
-                    <td class="did-display">{{ entity.did }}#{{ c.path|join:"/" }}</td>
+                    <td class="did-display">{{ wallet.did }}#{{ c.path|join:"/" }}</td>
                     <td>{{ c.description }}</td>
                     <td>
                         <button type="button" class="btn btn-sm"

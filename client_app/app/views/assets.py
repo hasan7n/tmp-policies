@@ -1,11 +1,12 @@
 import json
 import logging
 
-from django.shortcuts import get_object_or_404, redirect, render
+from django.http import Http404
+from django.shortcuts import redirect, render
 
-from .. import pdo_runner, registry_client
+from .. import ledger_client, pdo_runner, registry_client
 from ..did_utils import make_did, parse_did
-from ..models import AppConfig, Entity
+from ..models import AppConfig
 from ._helpers import (
     BaseView,
     JsonView,
@@ -56,24 +57,67 @@ def _flatten_policy_issuers(raw_issuers):
     return rows
 
 
+def _short_id(contract_id, n=12):
+    return contract_id[:n]
+
+
+def _user_wallet_cards(user_name):
+    """Wallet picker entries for the asset list / asset dashboard 'Use' modal.
+
+    Mirrors ``views.wallets._user_wallet_ids`` but inlined to avoid a circular
+    import. Pure wallets = signature_authority contracts not registered as
+    assets.
+    """
+    sa_ids = ledger_client.list_signature_authority_ids(user_name)
+    if not sa_ids:
+        return []
+    try:
+        asset_ids = {
+            parse_did(a["did"])[0] for a in (registry_client.list_assets() or [])
+        }
+    except Exception:
+        logger.exception("Failed to fetch assets while building wallet picker")
+        asset_ids = set()
+    return [
+        {"contract_id": cid, "name": f"Wallet {_short_id(cid)}"}
+        for cid in sa_ids
+        if cid not in asset_ids
+    ]
+
+
+def _require_user_asset(user_name, contract_id):
+    """Raise 404 unless ``contract_id`` is one of this user's assets.
+
+    Asset ownership = (a) the contract id is in the user's on-ledger
+    contract list, and (b) the DID is registered in the asset registry.
+    """
+    if not ledger_client.user_owns_contract(user_name, contract_id):
+        raise Http404(f"asset not found: {contract_id}")
+    try:
+        registry_client.get_asset_by_did(make_did(contract_id))
+    except Exception:
+        raise Http404(f"asset not registered: {contract_id}")
+
+
 class AssetsListView(BaseView):
-    """GET-only: list all assets in the registry, annotated with local entity info."""
+    """GET-only: list all assets in the registry, annotated with ownership."""
 
     def get(self, request):
+        user_name = AppConfig.get_instance().public_key
         assets = []
         list_error = None
         try:
-            assets = registry_client.list_assets()
-            local_map = {e.did: e for e in Entity.objects.filter(entity_type="ASSET")}
+            assets = registry_client.list_assets() or []
+            owned_ids = set(ledger_client.list_signature_authority_ids(user_name))
             for a in assets:
-                e = local_map.get(a["did"])
-                a["is_local"] = e is not None
-                a["local_pk"] = e.pk if e else None
+                cid, _ = parse_did(a["did"])
+                a["contract_id"] = cid
+                a["is_local"] = cid in owned_ids
         except Exception as e:
             logger.exception("Failed to fetch assets")
             list_error = str(e)
 
-        wallets = Entity.objects.filter(entity_type="WALLET").order_by("pk")
+        wallets = _user_wallet_cards(user_name)
         return render(
             request,
             "assets/list.html",
@@ -119,18 +163,6 @@ class AssetSetupView(BaseView):
             contract_id = pdo_runner.create_wallet(name, user_name)
             did = make_did(contract_id)
 
-            Entity.objects.create(
-                did=did,
-                name=name,
-                entity_type="ASSET",
-                contract_name=f"identity.{name}.signature_authority",
-                owner_key=user_name,
-                extra_data={
-                    "guardian_url": guardian_url,
-                    "guardian_port": guardian_port,
-                },
-            )
-
             registry_asset = registry_client.register_asset(
                 name=name,
                 did=did,
@@ -173,13 +205,28 @@ class AssetDashboardView(BaseView):
     it surfaces the Expose form.
     """
 
-    def get(self, request, pk):
-        entity = get_object_or_404(Entity, pk=pk, entity_type="ASSET")
+    def get(self, request, contract_id):
         user_name = AppConfig.get_instance().public_key
+        _require_user_asset(user_name, contract_id)
+        did = make_did(contract_id)
 
+        try:
+            asset = registry_client.get_asset_by_did(did) or {}
+        except Exception as e:
+            logger.exception("Failed to fetch asset from registry")
+            asset = {}
+            registry_error = str(e)
+        else:
+            registry_error = None
+
+        metadata = asset.get("metadata", {}) or {}
         ctx = {
-            "entity": entity,
-            "wallets": Entity.objects.filter(entity_type="WALLET").order_by("pk"),
+            "asset": {
+                "contract_id": contract_id,
+                "did": did,
+                "name": asset.get("name") or f"Asset {_short_id(contract_id)}",
+            },
+            "wallets": _user_wallet_cards(user_name),
             "has_policy": False,
             "policy_contract_id": None,
             "token_contract_id": None,
@@ -188,23 +235,14 @@ class AssetDashboardView(BaseView):
             "policy_data": {},
             "policy_data_json": "",
             "policy_data_error": None,
+            "registry_error": registry_error,
             "templates": [],
             "templates_error": None,
             "credential_templates": [],
             "credential_templates_error": None,
         }
 
-        # Pull the registry record to discover the (token-DID-shaped)
-        # policy_contract field, if expose has been run.
-        token_did = ""
-        try:
-            asset = registry_client.get_asset_by_did(entity.did) or {}
-            metadata = asset.get("metadata", {}) or {}
-            token_did = metadata.get("policy_contract", "")
-        except Exception as e:
-            logger.exception("Failed to fetch asset from registry")
-            ctx["registry_error"] = str(e)
-
+        token_did = metadata.get("policy_contract", "")
         if token_did:
             try:
                 token_id, _ = parse_did(token_did)
@@ -264,13 +302,14 @@ class AssetExposeView(BaseView):
     we redirect back there.
     """
 
-    def get(self, request, pk):
-        return redirect("asset_dashboard", pk=pk)
+    def get(self, request, contract_id):
+        return redirect("asset_dashboard", contract_id=contract_id)
 
-    def post(self, request, pk):
-        entity = get_object_or_404(Entity, pk=pk, entity_type="ASSET")
+    def post(self, request, contract_id):
         user_name = AppConfig.get_instance().public_key
-        dashboard_url = f"/assets/{pk}/"
+        _require_user_asset(user_name, contract_id)
+        did = make_did(contract_id)
+        dashboard_url = f"/assets/{contract_id}/"
 
         policy_data_raw = (request.POST.get("policy_data") or "").strip()
         try:
@@ -280,28 +319,28 @@ class AssetExposeView(BaseView):
                 dashboard_url, f"Invalid policy data JSON: {e}", "error"
             )
 
-        guardian_host = entity.extra_data.get("guardian_url", "")
-        guardian_port = entity.extra_data.get("guardian_port", "")
-        if not guardian_host:
-            try:
-                meta = (registry_client.get_asset_by_did(entity.did) or {}).get(
-                    "metadata", {}
-                ) or {}
-                guardian_host = meta.get("guardian_url", "")
-                guardian_port = meta.get("guardian_port", "")
-            except Exception:
-                pass
-
+        # Guardian info is on the registry record (set at asset registration).
+        try:
+            meta = (registry_client.get_asset_by_did(did) or {}).get(
+                "metadata", {}
+            ) or {}
+        except Exception as e:
+            return redirect_with_msg(
+                dashboard_url, f"Failed to read asset metadata: {e}", "error"
+            )
+        guardian_host = meta.get("guardian_url", "")
+        guardian_port = meta.get("guardian_port", "")
         if not guardian_host or not guardian_port:
             return redirect_with_msg(
                 dashboard_url, "Guardian URL/port missing on this asset.", "error"
             )
 
         guardian = _guardian_url_port(guardian_host, guardian_port)
+        asset_name = meta.get("name") or _short_id(contract_id)
 
         try:
             result = pdo_runner.create_asset_policy(
-                f"Policy for {entity.name}", guardian, user_name
+                f"Policy for {asset_name}", guardian, user_name
             )
 
             if policy_data:
@@ -309,19 +348,9 @@ class AssetExposeView(BaseView):
                     result["policy_contract_id"], policy_data, user_name
                 )
 
-            entity.extra_data.update(
-                {
-                    "policy_contract_id": result["policy_contract_id"],
-                    "token_contract_id": result["token_contract_id"],
-                    "guardian_url": guardian_host,
-                    "guardian_port": guardian_port,
-                }
-            )
-            entity.save(update_fields=["extra_data"])
-
             token_did = make_did(result["token_contract_id"])
             registry_client.update_asset_metadata_by_did(
-                entity.did,
+                did,
                 {"policy_contract": token_did, "policy_data": policy_data},
             )
 
@@ -340,15 +369,16 @@ class AssetExposeView(BaseView):
 # JSON endpoints
 # ============================================================
 class AssetUseEndpoint(JsonView):
-    """POST {asset_did, wallet_pk} — run the consumer download flow and
+    """POST {asset_did, wallet_id} — run the consumer download flow and
     return ``{output_file, issued_vc}``."""
 
     def handle(self, request, data, **kwargs):
         asset_did = require(data, "asset_did")
-        wallet_pk = require(data, "wallet_pk")
+        wallet_id = require(data, "wallet_id")
 
-        wallet = get_object_or_404(Entity, pk=wallet_pk, entity_type="WALLET")
         user_name = AppConfig.get_instance().public_key
+        if not ledger_client.user_owns_contract(user_name, wallet_id):
+            raise ValidationError(f"wallet not found: {wallet_id}")
 
         asset_info = registry_client.get_asset_by_did(asset_did)
         metadata = asset_info.get("metadata", {}) or {}
@@ -360,7 +390,6 @@ class AssetUseEndpoint(JsonView):
             )
 
         token_contract_id, _ = parse_did(token_did)
-        wallet_id, _ = parse_did(wallet.did)
         guardian = _guardian_url_port(
             metadata.get("guardian_url", ""),
             metadata.get("guardian_port", ""),
@@ -382,9 +411,10 @@ class AssetRegisterPolicyIssuerEndpoint(JsonView):
     asset's policy agent.
     """
 
-    def handle(self, request, data, pk):
-        entity = get_object_or_404(Entity, pk=pk, entity_type="ASSET")
+    def handle(self, request, data, contract_id):
         user_name = AppConfig.get_instance().public_key
+        _require_user_asset(user_name, contract_id)
+        did = make_did(contract_id)
 
         issuer_did = require(data, "issuer_did")
         credential_types = data.get("credential_types")
@@ -400,7 +430,7 @@ class AssetRegisterPolicyIssuerEndpoint(JsonView):
         path = [issuer_path] if issuer_path else []
 
         try:
-            asset = registry_client.get_asset_by_did(entity.did) or {}
+            asset = registry_client.get_asset_by_did(did) or {}
         except Exception as e:
             raise ValidationError(f"failed to look up asset in registry: {e}")
         token_did = (asset.get("metadata", {}) or {}).get("policy_contract", "")
@@ -431,16 +461,17 @@ class AssetUpdatePolicyDataEndpoint(JsonView):
     list view's policy_data field stays in sync.
     """
 
-    def handle(self, request, data, pk):
-        entity = get_object_or_404(Entity, pk=pk, entity_type="ASSET")
+    def handle(self, request, data, contract_id):
         user_name = AppConfig.get_instance().public_key
+        _require_user_asset(user_name, contract_id)
+        did = make_did(contract_id)
 
         policy_data = data.get("policy_data")
         if not isinstance(policy_data, dict):
             raise ValidationError("'policy_data' must be a JSON object")
 
         try:
-            asset = registry_client.get_asset_by_did(entity.did) or {}
+            asset = registry_client.get_asset_by_did(did) or {}
         except Exception as e:
             raise ValidationError(f"failed to look up asset in registry: {e}")
         token_did = (asset.get("metadata", {}) or {}).get("policy_contract", "")
@@ -456,7 +487,7 @@ class AssetUpdatePolicyDataEndpoint(JsonView):
 
         try:
             registry_client.update_asset_metadata_by_did(
-                entity.did, {"policy_data": policy_data}
+                did, {"policy_data": policy_data}
             )
         except Exception:
             logger.exception("Failed to mirror policy_data into registry metadata")
