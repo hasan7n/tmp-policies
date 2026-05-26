@@ -17,16 +17,15 @@
         <table class="data-table" style="margin-top:0.75rem">
             <tbody>
                 <tr><td><strong>DID</strong></td><td class="did-display">{{ wallet.did }}</td></tr>
-                <tr><td><strong>Contract id</strong></td><td class="did-display">{{ wallet.contract_id }}</td></tr>
             </tbody>
         </table>
     </div>
 
     <div class="card">
         <div class="card-header" style="margin-bottom:0.75rem">
-            <h2 style="margin:0">Registered Issuers</h2>
+            <h2 style="margin:0">Signing Contexts</h2>
             <button type="button" class="btn btn-sm btn-primary"
-                    data-modal-open="register-issuer-modal">+ Register Issuer</button>
+                    data-modal-open="register-issuer-modal">+ Register Signing Context</button>
         </div>
 
         {% if signing_contexts_error %}
@@ -54,7 +53,7 @@
             </tbody>
         </table>
         {% else %}
-        <p style="color:#999">No issuers registered yet.</p>
+        <p style="color:#999">No signing contexts registered yet.</p>
         {% endif %}
     </div>
 
@@ -93,19 +92,19 @@
 <div id="register-issuer-modal" class="modal-backdrop hidden">
     <form class="modal" style="max-width:440px" id="register-issuer-form">
         <div class="modal-header">
-            <span class="modal-title">Register Issuer</span>
+            <span class="modal-title">Register Signing Context</span>
             <button type="button" class="modal-close"
                     data-modal-close="register-issuer-modal">&times;</button>
         </div>
         <div class="form-group">
             <label for="issuer-name-input">Name</label>
             <input type="text" id="issuer-name-input" name="name"
-                   placeholder="e.g. university_issuer" required>
+                   placeholder="e.g. university" required>
         </div>
         <div class="form-group">
             <label for="issuer-desc-input">Description</label>
             <input type="text" id="issuer-desc-input" name="description"
-                   placeholder="e.g. University membership issuer">
+                   placeholder="e.g. University membership signing context">
         </div>
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Register</button>

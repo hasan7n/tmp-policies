@@ -18,7 +18,7 @@
             try {
                 var res = await window.api.post(
                     '/api/wallets/' + cidUrl + '/register-issuer/', payload);
-                window.flash(res.message || 'Issuer registered.', 'success');
+                window.flash(res.message || 'Signing context registered.', 'success');
                 window.location.reload();
             } catch (err) {
                 window.flash(err.message, 'error');

@@ -23,7 +23,7 @@
                 <tr><td><strong>Name</strong></td><td>{{ asset.name }}</td></tr>
                 <tr><td><strong>DID</strong></td><td class="did-display">{{ asset.did }}</td></tr>
                 {% if has_policy %}
-                <tr><td><strong>Policy contract id</strong></td><td class="did-display">{{ policy_contract_id }}</td></tr>
+                <tr><td><strong>Policy id</strong></td><td class="did-display">{{ policy_contract_id }}</td></tr>
                 {% endif %}
             </tbody>
         </table>
@@ -35,13 +35,6 @@
     </div>
 
     {% if has_policy %}
-    <div class="card">
-        <div class="card-header" style="margin-bottom:0.75rem">
-            <h2 style="margin:0">Consume</h2>
-            <button type="button" class="btn btn-sm btn-primary"
-                    data-modal-open="use-modal">Use</button>
-        </div>
-    </div>
 
     <div class="card">
         <h2>Policy Data</h2>

@@ -177,7 +177,7 @@ class WalletRegisterIssuerEndpoint(JsonView):
 
         return {
             "ok": True,
-            "message": f'Issuer "{name}" registered.',
+            "message": f'Signing context "{name}" registered.',
             "issuer": {
                 "did": make_did(contract_id, name),
                 "path": [name],
