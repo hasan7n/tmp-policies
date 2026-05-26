@@ -28,7 +28,7 @@
             <div class="card-meta did-display">{{ a.did }}</div>
             <div class="card-actions">
                 {% if a.is_local %}
-                <a href="{% url 'asset_dashboard' contract_id=a.contract_id %}" class="btn btn-sm btn-primary">Open</a>
+                <a href="{% url 'asset_dashboard' cid_url=a.cid_url %}" class="btn btn-sm btn-primary">Open</a>
                 {% else %}
                 <button type="button" class="btn btn-sm btn-primary"
                         data-action="open-use"

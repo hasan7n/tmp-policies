@@ -7,10 +7,10 @@
 
 (function () {
     function init() {
-        var container = document.querySelector('[data-asset-contract-id]');
+        var container = document.querySelector('[data-asset-cid-url]');
         if (!container) return;
-        var assetId = container.dataset.assetContractId;
-        var encodedId = encodeURIComponent(assetId);
+        // URL-safe contract id (server-side encoding, see app/url_safe_id.py).
+        var cidUrl = container.dataset.assetCidUrl;
 
         // ---- Expose: prefill policy_data from selected template's schema ----
         var templateSelect = document.getElementById('id_policy_template');
@@ -71,7 +71,7 @@
                 };
                 try {
                     var res = await window.api.post(
-                        '/api/assets/' + encodedId + '/register-policy-issuer/',
+                        '/api/assets/' + cidUrl + '/register-policy-issuer/',
                         payload
                     );
                     window.flash(res.message || 'Issuer registered.', 'success');
@@ -101,7 +101,7 @@
                 }
                 try {
                     var res = await window.api.post(
-                        '/api/assets/' + encodedId + '/update-policy-data/',
+                        '/api/assets/' + cidUrl + '/update-policy-data/',
                         { policy_data: policyData }
                     );
                     window.flash(res.message || 'Policy data updated.', 'success');

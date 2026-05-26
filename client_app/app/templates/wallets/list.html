@@ -18,7 +18,7 @@
             <h3>{{ w.name }}</h3>
             <div class="card-meta did-display">{{ w.did }}</div>
             <div class="card-actions">
-                <a href="{% url 'wallet_detail' contract_id=w.contract_id %}" class="btn btn-sm">Open</a>
+                <a href="{% url 'wallet_detail' cid_url=w.cid_url %}" class="btn btn-sm">Open</a>
             </div>
         </div>
         {% endfor %}

@@ -24,27 +24,29 @@ from .views.wallets import (
 #   * /api/... endpoints: POST-only, accept and return JSON. Used by JS
 #     for pages where multiple distinct actions are possible.
 #
-# Wallets/assets are addressed by their on-ledger contract_id. Path
-# converter is `path` (not `str`) because PDO contract ids are base64-
-# encoded hashes and may contain '/'.
+# Wallets/assets are addressed by their on-ledger contract_id. Because
+# PDO contract ids are base64 hashes (containing `/`, `+`, `=`), we
+# carry them through URL paths under their URL-safe encoding
+# (`app.url_safe_id`) bound to the `cid_url` kwarg. Views decode it
+# back to the raw contract_id at the boundary.
 urlpatterns = [
     # Assets (pages)
     path("", AssetsListView.as_view(), name="assets_page"),
     path("assets/setup/", AssetSetupView.as_view(), name="asset_setup"),
     path(
-        "assets/<path:contract_id>/",
+        "assets/<str:cid_url>/",
         AssetDashboardView.as_view(),
         name="asset_dashboard",
     ),
     path(
-        "assets/<path:contract_id>/expose/",
+        "assets/<str:cid_url>/expose/",
         AssetExposeView.as_view(),
         name="asset_expose",
     ),
     # Wallets (pages)
     path("wallets/", WalletsListView.as_view(), name="wallets"),
     path(
-        "wallets/<path:contract_id>/",
+        "wallets/<str:cid_url>/",
         WalletDetailView.as_view(),
         name="wallet_detail",
     ),
@@ -54,27 +56,27 @@ urlpatterns = [
     # JSON endpoints
     path("api/assets/use/", AssetUseEndpoint.as_view(), name="api_asset_use"),
     path(
-        "api/assets/<path:contract_id>/register-policy-issuer/",
+        "api/assets/<str:cid_url>/register-policy-issuer/",
         AssetRegisterPolicyIssuerEndpoint.as_view(),
         name="api_asset_register_policy_issuer",
     ),
     path(
-        "api/assets/<path:contract_id>/update-policy-data/",
+        "api/assets/<str:cid_url>/update-policy-data/",
         AssetUpdatePolicyDataEndpoint.as_view(),
         name="api_asset_update_policy_data",
     ),
     path(
-        "api/wallets/<path:contract_id>/add-vc/",
+        "api/wallets/<str:cid_url>/add-vc/",
         WalletAddVCEndpoint.as_view(),
         name="api_wallet_add_vc",
     ),
     path(
-        "api/wallets/<path:contract_id>/register-issuer/",
+        "api/wallets/<str:cid_url>/register-issuer/",
         WalletRegisterIssuerEndpoint.as_view(),
         name="api_wallet_register_issuer",
     ),
     path(
-        "api/wallets/<path:contract_id>/sign-credential/",
+        "api/wallets/<str:cid_url>/sign-credential/",
         WalletSignCredentialEndpoint.as_view(),
         name="api_wallet_sign_credential",
     ),

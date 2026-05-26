@@ -7,6 +7,7 @@ from django.shortcuts import redirect, render
 from .. import ledger_client, pdo_runner, registry_client
 from ..did_utils import make_did, parse_did
 from ..models import AppConfig
+from ..url_safe_id import decode_cid, encode_cid
 from ._helpers import (
     BaseView,
     JsonView,
@@ -112,6 +113,7 @@ class AssetsListView(BaseView):
             for a in assets:
                 cid, _ = parse_did(a["did"])
                 a["contract_id"] = cid
+                a["cid_url"] = encode_cid(cid)
                 a["is_local"] = cid in owned_ids
         except Exception as e:
             logger.exception("Failed to fetch assets")
@@ -205,7 +207,8 @@ class AssetDashboardView(BaseView):
     it surfaces the Expose form.
     """
 
-    def get(self, request, contract_id):
+    def get(self, request, cid_url):
+        contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_asset(user_name, contract_id)
         did = make_did(contract_id)
@@ -223,6 +226,7 @@ class AssetDashboardView(BaseView):
         ctx = {
             "asset": {
                 "contract_id": contract_id,
+                "cid_url": cid_url,
                 "did": did,
                 "name": asset.get("name") or f"Asset {_short_id(contract_id)}",
             },
@@ -302,14 +306,15 @@ class AssetExposeView(BaseView):
     we redirect back there.
     """
 
-    def get(self, request, contract_id):
-        return redirect("asset_dashboard", contract_id=contract_id)
+    def get(self, request, cid_url):
+        return redirect("asset_dashboard", cid_url=cid_url)
 
-    def post(self, request, contract_id):
+    def post(self, request, cid_url):
+        contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_asset(user_name, contract_id)
         did = make_did(contract_id)
-        dashboard_url = f"/assets/{contract_id}/"
+        dashboard_url = f"/assets/{cid_url}/"
 
         policy_data_raw = (request.POST.get("policy_data") or "").strip()
         try:
@@ -411,7 +416,8 @@ class AssetRegisterPolicyIssuerEndpoint(JsonView):
     asset's policy agent.
     """
 
-    def handle(self, request, data, contract_id):
+    def handle(self, request, data, cid_url):
+        contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_asset(user_name, contract_id)
         did = make_did(contract_id)
@@ -461,7 +467,8 @@ class AssetUpdatePolicyDataEndpoint(JsonView):
     list view's policy_data field stays in sync.
     """
 
-    def handle(self, request, data, contract_id):
+    def handle(self, request, data, cid_url):
+        contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_asset(user_name, contract_id)
         did = make_did(contract_id)

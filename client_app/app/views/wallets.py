@@ -7,6 +7,7 @@ from django.shortcuts import render
 from .. import ledger_client, pdo_runner, registry_client
 from ..did_utils import make_did, parse_did
 from ..models import AppConfig
+from ..url_safe_id import decode_cid, encode_cid
 from ._helpers import (
     BaseView,
     JsonView,
@@ -53,6 +54,7 @@ def _require_user_wallet(user_name, contract_id):
 def _wallet_card(contract_id):
     return {
         "contract_id": contract_id,
+        "cid_url": encode_cid(contract_id),
         "name": f"Wallet {_short_id(contract_id)}",
         "did": make_did(contract_id),
     }
@@ -90,7 +92,8 @@ class WalletDetailView(BaseView):
     """GET-only: render the wallet dashboard. All mutating actions are JSON
     endpoints (see ``api.py``)."""
 
-    def get(self, request, contract_id):
+    def get(self, request, cid_url):
+        contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_wallet(user_name, contract_id)
         wallet = _wallet_card(contract_id)
@@ -141,7 +144,8 @@ class WalletDetailView(BaseView):
 class WalletAddVCEndpoint(JsonView):
     """POST {vc: {...}} — store a VC in the wallet."""
 
-    def handle(self, request, data, contract_id):
+    def handle(self, request, data, cid_url):
+        contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_wallet(user_name, contract_id)
         vc = require(data, "vc")
@@ -155,7 +159,8 @@ class WalletAddVCEndpoint(JsonView):
 class WalletRegisterIssuerEndpoint(JsonView):
     """POST {name, description?, extensible?} — register a signing context."""
 
-    def handle(self, request, data, contract_id):
+    def handle(self, request, data, cid_url):
+        contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_wallet(user_name, contract_id)
         name = require(data, "name")
@@ -188,7 +193,8 @@ class WalletSignCredentialEndpoint(JsonView):
     Returns the signed VC JSON on success.
     """
 
-    def handle(self, request, data, contract_id):
+    def handle(self, request, data, cid_url):
+        contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_wallet(user_name, contract_id)
         signing_context, template_type, subject_did = require(

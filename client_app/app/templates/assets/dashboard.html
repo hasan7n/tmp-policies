@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="container"
-     data-asset-contract-id="{{ asset.contract_id }}"
+     data-asset-cid-url="{{ asset.cid_url }}"
      data-asset-did="{{ asset.did }}">
     <div class="page-header">
         <div>
@@ -22,9 +22,7 @@
             <tbody>
                 <tr><td><strong>Name</strong></td><td>{{ asset.name }}</td></tr>
                 <tr><td><strong>DID</strong></td><td class="did-display">{{ asset.did }}</td></tr>
-                <tr><td><strong>Contract id</strong></td><td class="did-display">{{ asset.contract_id }}</td></tr>
                 {% if has_policy %}
-                <tr><td><strong>Token contract id</strong></td><td class="did-display">{{ token_contract_id }}</td></tr>
                 <tr><td><strong>Policy contract id</strong></td><td class="did-display">{{ policy_contract_id }}</td></tr>
                 {% endif %}
             </tbody>
@@ -170,7 +168,7 @@
 {% else %}
 <div id="expose-modal" class="modal-backdrop hidden">
     <form class="modal" id="expose-form" method="post"
-          action="{% url 'asset_expose' contract_id=asset.contract_id %}">
+          action="{% url 'asset_expose' cid_url=asset.cid_url %}">
         {% csrf_token %}
         <div class="modal-header">
             <span class="modal-title">Expose Asset</span>

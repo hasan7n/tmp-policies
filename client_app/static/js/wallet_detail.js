@@ -5,11 +5,10 @@
 
 (function () {
     function init() {
-        var container = document.querySelector('[data-wallet-contract-id]');
+        var container = document.querySelector('[data-wallet-cid-url]');
         if (!container) return;
-        var walletId = container.dataset.walletContractId;
-        var walletDid = container.dataset.walletDid;
-        var encodedId = encodeURIComponent(walletId);
+        // URL-safe contract id (server-side encoding, see app/url_safe_id.py).
+        var cidUrl = container.dataset.walletCidUrl;
 
         // ---- Register issuer ----
         var registerForm = document.getElementById('register-issuer-form');
@@ -18,7 +17,7 @@
             var payload = window.formToObject(registerForm);
             try {
                 var res = await window.api.post(
-                    '/api/wallets/' + encodedId + '/register-issuer/', payload);
+                    '/api/wallets/' + cidUrl + '/register-issuer/', payload);
                 window.flash(res.message || 'Issuer registered.', 'success');
                 window.location.reload();
             } catch (err) {
@@ -37,7 +36,7 @@
             catch (err) { window.flash('Invalid JSON: ' + err.message, 'error'); return; }
             try {
                 await window.api.post(
-                    '/api/wallets/' + encodedId + '/add-vc/', { vc: vc });
+                    '/api/wallets/' + cidUrl + '/add-vc/', { vc: vc });
                 window.flash('Credential added.', 'success');
                 window.location.reload();
             } catch (err) {
@@ -91,7 +90,7 @@
             };
             try {
                 var res = await window.api.post(
-                    '/api/wallets/' + encodedId + '/sign-credential/', payload);
+                    '/api/wallets/' + cidUrl + '/sign-credential/', payload);
                 document.getElementById('sign-credential-modal').classList.add('hidden');
                 var out = document.getElementById('signed-vc-output');
                 out.textContent = JSON.stringify(res.signed_vc, null, 2);
