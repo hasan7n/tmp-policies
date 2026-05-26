@@ -1,3 +1,4 @@
+set -e
 # some env vars
 SCRIPT_DIR=$(dirname $(readlink -f $0))
 source ${SCRIPT_DIR}/env.sh
