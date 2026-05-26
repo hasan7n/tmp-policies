@@ -91,7 +91,7 @@ def _populate_service_registries(state, bindings):
             "--group",
             "default",
             "--replicas",
-            "1",
+            "5",
             "--duration",
             "999999999",
         ],
