@@ -1,0 +1,1 @@
+docker run --rm --user "$(id -u):0" --name asset_registry_container -p 8001:8000 toy_asset_registry:latest

@@ -5,6 +5,7 @@ set -e
 : "${PDO_INSTALL_ROOT?Missing environment variable PDO_INSTALL_ROOT}"
 : "${PDO_SOURCE_ROOT?Missing environment variable PDO_SOURCE_ROOT}"
 : "${F_SERVICE_HOST?Missing environment variable F_SERVICE_HOST}"
+: "${PDO_LEDGER_URL?Missing environment variable PDO_LEDGER_URL}"
 
 source ${PDO_SOURCE_ROOT}/build/common-config.sh
 source ${PDO_INSTALL_ROOT}/bin/activate
@@ -15,4 +16,8 @@ cp $LEDGER_CERT_PATH $PDO_LEDGER_KEY_ROOT/networkcert.pem
 mkdir -p $PDO_HOME/etc/sites
 cp $SITE_TOML_SOURCE $PDO_HOME/etc/sites/$F_SERVICE_HOST.toml
 
-TEST_LIST=^system-download make -C ${PDO_CONTRACTS_ROOT} test
+bash $PDO_CONTRACTS_ROOT/download-contract/test/script_test.sh \
+    "--loglevel" "warn" \
+    "--logfile" "__screen__" \
+    "--ledger" "$PDO_LEDGER_URL" \
+    "--host" "$F_SERVICE_HOST"

@@ -1,0 +1,1 @@
+docker build -t toy_template_registry:latest -f ./Dockerfile .

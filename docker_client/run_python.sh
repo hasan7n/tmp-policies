@@ -5,6 +5,7 @@
 : "${USER_KEYS_FOLDER?Missing environment variable USER_KEYS_FOLDER}"
 
 docker run --rm --network host --name policies_client_container \
+    --user "$(id -u):0" \
     --volume ${LEDGER_CERT_PATH}:/tmp/networkcert.pem \
     --volume ${SITE_TOML_SOURCE}:/tmp/site.toml \
     --volume ${USER_KEYS_FOLDER}:/tmp/user_keys \

@@ -35,4 +35,15 @@ RUN ${PDO_INSTALL_ROOT}/bin/pip install lmdb==1.7.5
 COPY ./entrypoint.sh /entrypoint.sh
 COPY ./entrypoint_python.sh /entrypoint_python.sh
 
+RUN rm -rf ${PDO_INSTALL_ROOT}/opt/pdo/keys/*
+
+# Non-root user + group 0 access so any host uid can read/write mounted
+# volumes when launched with `--user $(id -u):0`. New files written at
+# runtime inherit gid 0 from the process's egid.
+RUN useradd -m -u 1000 pdo_user && \
+    chgrp -R 0 ${PDO_INSTALL_ROOT}/opt/pdo ${PDO_CONTRACTS_ROOT}/download-contract/test /entrypoint.sh /entrypoint_python.sh && \
+    chmod -R g=u ${PDO_INSTALL_ROOT}/opt/pdo ${PDO_CONTRACTS_ROOT}/download-contract/test /entrypoint.sh /entrypoint_python.sh
+USER 1000:0
+
+
 ENTRYPOINT ["bash", "/entrypoint.sh"]

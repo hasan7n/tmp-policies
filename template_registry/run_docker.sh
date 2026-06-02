@@ -1,0 +1,1 @@
+docker run --rm --name template_registry_container -p 8002:8000 toy_template_registry:latest

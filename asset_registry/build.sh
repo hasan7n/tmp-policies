@@ -1,0 +1,1 @@
+docker build -t toy_asset_registry:latest -f ./Dockerfile .
