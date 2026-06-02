@@ -1,9 +1,7 @@
 #!/bin/bash
 : "${F_GUARDIAN_HOST?Missing environment variable F_GUARDIAN_HOST}"
 
-export PDO_HOME="/project/pdo/run/opt/pdo"
-export PDO_SOURCE_ROOT="/project/pdo/src"
-export PDO_INSTALL_ROOT="/project/pdo/run"
+export PDO_HOME="${PDO_INSTALL_ROOT}/opt/pdo"
 export PDO_LEDGER_URL="http://localhost:19088"  # not used?
 source ${PDO_SOURCE_ROOT}/build/common-config.sh
 

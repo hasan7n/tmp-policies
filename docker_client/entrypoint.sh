@@ -6,6 +6,7 @@ set -e
 : "${PDO_SOURCE_ROOT?Missing environment variable PDO_SOURCE_ROOT}"
 : "${F_SERVICE_HOST?Missing environment variable F_SERVICE_HOST}"
 : "${PDO_LEDGER_URL?Missing environment variable PDO_LEDGER_URL}"
+: "${PREFERRED_ESERVICE_URL?Missing environment variable PREFERRED_ESERVICE_URL}"
 
 source ${PDO_SOURCE_ROOT}/build/common-config.sh
 source ${PDO_INSTALL_ROOT}/bin/activate
@@ -20,4 +21,5 @@ bash $PDO_CONTRACTS_ROOT/download-contract/test/script_test.sh \
     "--loglevel" "warn" \
     "--logfile" "__screen__" \
     "--ledger" "$PDO_LEDGER_URL" \
-    "--host" "$F_SERVICE_HOST"
+    "--host" "$F_SERVICE_HOST" \
+    "-p" "$PREFERRED_ESERVICE_URL"

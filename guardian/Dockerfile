@@ -1,14 +1,20 @@
-FROM pdo_contracts:0.4.29
+ARG PDO_CLIENT_IMAGE
+FROM $PDO_CLIENT_IMAGE
 
+USER root
 # Install guardian operation dependencies
 COPY requirements.txt /project/requirements.txt
-RUN bash -c 'source ~/tools/environment.sh && ${PDO_INSTALL_ROOT}/bin/pip install -r /project/requirements.txt'
+RUN ${PDO_INSTALL_ROOT}/bin/pip install -r /project/requirements.txt
 
 # Install guardian operation as a module
-COPY --chown=${UNAME}:${UNAME} . /project/my_guardian
-RUN bash -c 'source ~/tools/environment.sh && ${PDO_INSTALL_ROOT}/bin/pip install -e /project/my_guardian'
+COPY . /project/my_guardian
+RUN ${PDO_INSTALL_ROOT}/bin/pip install -e /project/my_guardian
 
 # Configure guardian service to use the new operation
-RUN bash -c 'source ~/tools/environment.sh && sed -i "s|^## Operations = '\''pdo.common.operations'\''|Operations = '\''guardian_operation'\''|" ${PDO_HOME}/etc/contracts/guardian_service.toml'
+RUN sed -i "s|^## Operations = '\''pdo.common.operations'\''|Operations = '\''guardian_operation'\''|" ${PDO_INSTALL_ROOT}/opt/pdo/etc/contracts/guardian_service.toml
+RUN chgrp -R 0 /project && \
+    chmod -R g=u /project
+USER 1000:0
+
 
 ENTRYPOINT [ "bash", "/project/my_guardian/start_services.sh" ]

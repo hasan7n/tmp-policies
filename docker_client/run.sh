@@ -2,8 +2,10 @@
 : "${SITE_TOML_SOURCE?Missing environment variable SITE_TOML_SOURCE}"
 : "${F_SERVICE_HOST?Missing environment variable F_SERVICE_HOST}"
 : "${PDO_LEDGER_URL?Missing environment variable PDO_LEDGER_URL}"
+: "${PDO_CLIENT_IMAGE?Missing environment variable PDO_CLIENT_IMAGE}"
+: "${PREFERRED_ESERVICE_URL?Missing environment variable PREFERRED_ESERVICE_URL}"
 
-docker run --rm --network host --name policies_client_container \
+docker run --rm --name policies_client_container \
     --user "$(id -u):0" \
     --volume ${LEDGER_CERT_PATH}:/tmp/cert.pem \
     --volume ${SITE_TOML_SOURCE}:/tmp/site.toml \
@@ -11,4 +13,5 @@ docker run --rm --network host --name policies_client_container \
     --env LEDGER_CERT_PATH=/tmp/cert.pem \
     --env SITE_TOML_SOURCE=/tmp/site.toml \
     --env PDO_LEDGER_URL=$PDO_LEDGER_URL \
-    pdo_policies:latest
+    --env PREFERRED_ESERVICE_URL=$PREFERRED_ESERVICE_URL \
+    $PDO_CLIENT_IMAGE

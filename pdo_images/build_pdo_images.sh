@@ -1,5 +1,7 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${PDO_LEDGER_IMAGE?Missing environment variable PDO_LEDGER_IMAGE}"
+: "${PDO_SERVICES_IMAGE?Missing environment variable PDO_SERVICES_IMAGE}"
 
 # Some config
 REPOSITORY="https://github.com/hasan7n/pdo-contracts"
@@ -32,3 +34,5 @@ PDO_SOURCE_ROOT=$PDO_SOURCE_ROOT \
     PDO_LOG_LEVEL=$PDO_LOG_LEVEL \
     make -C $PDO_SOURCE_ROOT/docker clean_repository
 
+docker tag pdo_ccf:0.4.29 $PDO_LEDGER_IMAGE
+docker tag pdo_services:0.4.29 $PDO_SERVICES_IMAGE
