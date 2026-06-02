@@ -1,1 +1,0 @@
-bash $PDO_CONTRACTS_ROOT/download-contract/test/cleanup.sh

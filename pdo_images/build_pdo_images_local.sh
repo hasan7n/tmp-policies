@@ -9,7 +9,7 @@ PDO_DEBUG_BUILD=1
 PDO_LOG_LEVEL=debug
 
 # Copy the local repo into a tmp folder so the build can't disturb the
-# working tree. -a preserves perms/links and brings the submodule along.
+# working tree.
 rm -rf $TMP_PDO_CONTRACTS_DIR
 cp -r $PDO_CONTRACTS_DIR $TMP_PDO_CONTRACTS_DIR
 

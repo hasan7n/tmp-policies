@@ -1,7 +1,6 @@
 # !/bin/bash
-
-# Workspace folder
-LEDGER_WS=/tmp/ledger_ws
+set -e
+: "${LEDGER_WS?Missing environment variable LEDGER_WS}"
 
 # Cleanup
 rm -rf ${LEDGER_WS}

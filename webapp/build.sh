@@ -1,0 +1,1 @@
+docker build -t pdo_webapp:latest -f ./Dockerfile .
