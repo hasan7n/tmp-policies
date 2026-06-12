@@ -1,9 +1,42 @@
 # !/bin/bash
 set -e
-: "${LEDGER_WS?Missing environment variable LEDGER_WS}"
-: "${PDO_LEDGER_IMAGE?Missing environment variable PDO_LEDGER_IMAGE}"
-: "${CONTAINER_NETWORK_INTERFACE?Missing environment variable CONTAINER_NETWORK_INTERFACE}"
-: "${LEDGER_PORT?Missing environment variable LEDGER_PORT}"
+
+LEDGER_WS="/tmp/pdo_ledger"
+PDO_LEDGER_IMAGE=""
+INTERFACE=""
+LEDGER_PORT=""
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [options]
+
+Run the PDO ledger (CCF) container.
+
+Options:
+  -w, --workspace DIR      Ledger workspace dir (default: $LEDGER_WS)
+  -i, --image IMAGE        Ledger image to run (required)
+  -n, --interface IFACE    Host network interface (required)
+  -p, --port PORT          Ledger port (required)
+  -h, --help               Show this help and exit
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -w|--workspace) LEDGER_WS="$2"; shift 2 ;;
+        -i|--image)     PDO_LEDGER_IMAGE="$2"; shift 2 ;;
+        -n|--interface) INTERFACE="$2"; shift 2 ;;
+        -p|--port)      LEDGER_PORT="$2"; shift 2 ;;
+        -h|--help)      usage; exit 0 ;;
+        *)              echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
+    esac
+done
+
+# Required arguments
+[ -n "$PDO_LEDGER_IMAGE" ]           || { echo "Missing required option: -i/--image" >&2; usage >&2; exit 1; }
+[ -n "$INTERFACE" ] || { echo "Missing required option: -n/--interface" >&2; usage >&2; exit 1; }
+[ -n "$LEDGER_PORT" ]                || { echo "Missing required option: -p/--port" >&2; usage >&2; exit 1; }
+[ "$LEDGER_PORT" = "6600" ]          || { echo "Invalid -p/--port: must be 6600 (got '$LEDGER_PORT')" >&2; exit 1; }
 
 # Cleanup
 rm -rf ${LEDGER_WS}
@@ -12,4 +45,4 @@ mkdir -p ${LEDGER_WS}/ccf/keys
 # Run ledger
 docker run --rm --network host --name ccf_container \
     --volume $LEDGER_WS:/project/pdo/xfer/ \
-    --entrypoint /project/pdo/tools/start_ccf.sh $PDO_LEDGER_IMAGE -m build -i "$CONTAINER_NETWORK_INTERFACE" --start
+    --entrypoint /project/pdo/tools/start_ccf.sh $PDO_LEDGER_IMAGE -m build -i "$INTERFACE" --start

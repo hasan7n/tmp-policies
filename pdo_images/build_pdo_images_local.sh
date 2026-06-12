@@ -1,8 +1,29 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Some config
 PDO_CONTRACTS_DIR=/home/hasan/work/pdos/pdo-contracts
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [options]
+
+Build the PDO ledger/services images from a local pdo-contracts checkout.
+
+Options:
+  -d, --contracts-dir DIR  Local pdo-contracts directory (default: $PDO_CONTRACTS_DIR)
+  -h, --help               Show this help and exit
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -d|--contracts-dir) PDO_CONTRACTS_DIR="$2"; shift 2 ;;
+        -h|--help)          usage; exit 0 ;;
+        *)                  echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
+    esac
+done
+
+# Some config
 TMP_PDO_CONTRACTS_DIR=/tmp/pdo-contracts
 PDO_VERSION=0.4.29
 PDO_DEBUG_BUILD=1
@@ -29,4 +50,3 @@ PDO_SOURCE_ROOT=$PDO_SOURCE_ROOT \
     PDO_DEBUG_BUILD=$PDO_DEBUG_BUILD \
     PDO_LOG_LEVEL=$PDO_LOG_LEVEL \
     make -C $PDO_SOURCE_ROOT/docker clean_repository
-

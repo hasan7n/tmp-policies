@@ -1,11 +1,38 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-: "${PDO_LEDGER_IMAGE?Missing environment variable PDO_LEDGER_IMAGE}"
-: "${PDO_SERVICES_IMAGE?Missing environment variable PDO_SERVICES_IMAGE}"
+
+PDO_LEDGER_IMAGE="mlcommons/pdo_ledger:latest"
+PDO_SERVICES_IMAGE="mlcommons/pdo_services:latest"
+REPOSITORY="https://github.com/hasan7n/pdo-contracts"
+BRANCH="poc"
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [options]
+
+Clone pdo-contracts and build the PDO ledger/services Docker images.
+
+Options:
+  -l, --ledger-image IMAGE     Tag for the built ledger image (default: $PDO_LEDGER_IMAGE)
+  -s, --services-image IMAGE   Tag for the built services image (default: $PDO_SERVICES_IMAGE)
+  -r, --repository URL         pdo-contracts git repository (default: $REPOSITORY)
+  -b, --branch BRANCH          Branch to check out (default: $BRANCH)
+  -h, --help                   Show this help and exit
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -l|--ledger-image)   PDO_LEDGER_IMAGE="$2"; shift 2 ;;
+        -s|--services-image) PDO_SERVICES_IMAGE="$2"; shift 2 ;;
+        -r|--repository)     REPOSITORY="$2"; shift 2 ;;
+        -b|--branch)         BRANCH="$2"; shift 2 ;;
+        -h|--help)           usage; exit 0 ;;
+        *)                   echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
+    esac
+done
 
 # Some config
-REPOSITORY="https://github.com/hasan7n/pdo-contracts"
-BRANCH="data-download"
 TMP_PDO_CONTRACTS_DIR=/tmp/pdo-contracts
 PDO_VERSION=0.4.29
 PDO_DEBUG_BUILD=1
