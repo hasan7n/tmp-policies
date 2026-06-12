@@ -24,4 +24,4 @@ USER 1000:0
 # run.sh migrates, seeds the dev admin user, then execs the dev server.
 # CMD holds the bind flag; override at runtime to change it.
 ENTRYPOINT ["bash", "/app/run.sh"]
-CMD ["--bind", "0.0.0.0:8000"]
+CMD ["--interface", "0.0.0.0", "--port", "8000"]
