@@ -21,6 +21,7 @@ RUN useradd -m -u 1000 app && \
     chgrp -R 0 /app && chmod -R g=u /app
 USER 1000:0
 
-# Migrate (creates the SQLite db on first run) then start the dev server.
-# exec ensures SIGTERM reaches Django, not the shell.
-CMD ["bash", "-c", "python manage.py migrate --noinput && DJANGO_SUPERUSER_USERNAME=admin DJANGO_SUPERUSER_PASSWORD=admin DJANGO_SUPERUSER_EMAIL=admin@example.com python manage.py createsuperuser --noinput && exec python -u manage.py runserver 0.0.0.0:8000"]
+# run.sh migrates, seeds the dev admin user, then execs the dev server.
+# CMD holds the bind flag; override at runtime to change it.
+ENTRYPOINT ["bash", "/app/run.sh"]
+CMD ["--bind", "0.0.0.0:8000"]
