@@ -1,8 +1,7 @@
 set -e
-# Build and install the contract families.
 SCRIPT_DIR=$(dirname $(readlink -f ${BASH_SOURCE[0]}))
-: "${PDO_CONTRACTS_ROOT:?Missing environment variable PDO_CONTRACTS_ROOT}"
 : "${PDO_INSTALL_ROOT:?Missing environment variable PDO_INSTALL_ROOT}"
+: "${PDO_CONTRACTS_ROOT:?Missing environment variable PDO_CONTRACTS_ROOT}"
 
 CONTRACT_FAMILIES=""
 
@@ -10,7 +9,9 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [options]
 
-Build and install the contract families into PDO_INSTALL_ROOT.
+Build and install the PDO client + contracts into PDO_INSTALL_ROOT.
+Assumes system deps are installed (setup/install_system_deps.sh) and
+pdo-contracts is already checked out at PDO_CONTRACTS_ROOT.
 
 Options:
   -f, --families "F1 F2"   Contract families to build (required)
@@ -29,8 +30,5 @@ done
 # Required arguments
 [ -n "$CONTRACT_FAMILIES" ] || { echo "Missing required option: -f/--families" >&2; usage >&2; exit 1; }
 
-source ${SCRIPT_DIR}/../scripts/activate_env.sh
-
-echo "SET(CONTRACT_FAMILIES ${CONTRACT_FAMILIES})" > ${PDO_CONTRACTS_ROOT}/Local.cmake
-make -C ${PDO_CONTRACTS_ROOT}
-make -C ${PDO_CONTRACTS_ROOT} install
+bash ${SCRIPT_DIR}/install_pdo_client.sh
+bash ${SCRIPT_DIR}/install_contracts.sh --families "$CONTRACT_FAMILIES"
