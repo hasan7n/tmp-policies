@@ -33,12 +33,8 @@ done
 [ -n "$USER_KEYS_FOLDER" ] || { echo "Missing required option: -k/--keys-folder" >&2; usage >&2; exit 1; }
 
 # create user keys
-mkdir -p ${USER_KEYS_FOLDER}
-for name in ${USER_NAMES} ; do
-    if [ ! -f ${USER_KEYS_FOLDER}/${name}_private.pem ] ; then
-        docker run --rm --volume ${USER_KEYS_FOLDER}:/tmp/users_keys \
-            --entrypoint /project/pdo/run/bin/python $IMAGE \
-            /project/pdo/src/build/__tools__/make-keys \
-            --keyfile /tmp/users_keys/${name} --format pem
-    fi
-done
+docker run --rm --volume ${USER_KEYS_FOLDER}:/tmp/users_keys \
+    $IMAGE \
+    /scripts/generate_user_keys.sh \
+    --keys-folder /tmp/users_keys \
+    --users "${USER_NAMES}"
