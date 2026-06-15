@@ -1,22 +1,55 @@
-: "${LEDGER_CERT_PATH?Missing environment variable LEDGER_CERT_PATH}"
-: "${SITE_TOML_SOURCE?Missing environment variable SITE_TOML_SOURCE}"
-: "${F_SERVICE_HOST?Missing environment variable F_SERVICE_HOST}"
-: "${PDO_LEDGER_URL?Missing environment variable PDO_LEDGER_URL}"
-: "${USER_KEYS_FOLDER?Missing environment variable USER_KEYS_FOLDER}"
-: "${PREFERRED_ESERVICE_URL?Missing environment variable PREFERRED_ESERVICE_URL}"
-: "${WEBAPP_IMAGE?Missing environment variable WEBAPP_IMAGE}"
-: "${WEBAPP_PORT?Missing environment variable WEBAPP_PORT}"
-: "${CONTAINER_NETWORK_INTERFACE?Missing environment variable CONTAINER_NETWORK_INTERFACE}"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+WEBAPP_IMAGE=""
+INTERFACE=""
+PORT=""
+LEDGER_CERT_PATH=""
+SITE_TOML_SOURCE=""
+USER_KEYS_FOLDER=""
 
-docker run --rm -p $CONTAINER_NETWORK_INTERFACE:$WEBAPP_PORT:8000 --name policies_web_client \
-    --user "$(id -u):0" \
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [options]
+
+Run the webapp container. Service configuration is read from
+$SCRIPT_DIR/.env (mounted into the container; see .env.example). Host PDO
+input files are bind-mounted onto the fixed in-container paths.
+
+Options:
+  -i, --image IMAGE        Docker image to run (required)
+  -n, --interface IFACE    Host interface to publish (required)
+  -p, --port PORT          Host port to publish (required)
+  -c, --cert-path PATH     Ledger network cert (required)
+  -s, --site-toml PATH     Site toml source (required)
+  -k, --keys-folder DIR    Existing user keys folder to mount (required)
+  -h, --help               Show this help and exit
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -i|--image)       WEBAPP_IMAGE="$2"; shift 2 ;;
+        -n|--interface)   INTERFACE="$2"; shift 2 ;;
+        -p|--port)        PORT="$2"; shift 2 ;;
+        -c|--cert-path)   LEDGER_CERT_PATH="$2"; shift 2 ;;
+        -s|--site-toml)   SITE_TOML_SOURCE="$2"; shift 2 ;;
+        -k|--keys-folder) USER_KEYS_FOLDER="$2"; shift 2 ;;
+        -h|--help)        usage; exit 0 ;;
+        *)                echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
+    esac
+done
+
+# Required arguments
+[ -n "$WEBAPP_IMAGE" ]     || { echo "Missing required option: -i/--image" >&2; usage >&2; exit 1; }
+[ -n "$INTERFACE" ]        || { echo "Missing required option: -n/--interface" >&2; usage >&2; exit 1; }
+[ -n "$PORT" ]             || { echo "Missing required option: -p/--port" >&2; usage >&2; exit 1; }
+[ -n "$LEDGER_CERT_PATH" ] || { echo "Missing required option: -c/--cert-path" >&2; usage >&2; exit 1; }
+[ -n "$SITE_TOML_SOURCE" ] || { echo "Missing required option: -s/--site-toml" >&2; usage >&2; exit 1; }
+[ -n "$USER_KEYS_FOLDER" ] || { echo "Missing required option: -k/--keys-folder" >&2; usage >&2; exit 1; }
+
+docker run --rm --user "$(id -u):0" --name policies_web_client \
+    -p $INTERFACE:$PORT:8000 \
     --volume ${LEDGER_CERT_PATH}:/tmp/networkcert.pem \
     --volume ${SITE_TOML_SOURCE}:/tmp/site.toml \
     --volume ${USER_KEYS_FOLDER}:/tmp/user_keys \
-    --env F_SERVICE_HOST=$F_SERVICE_HOST \
-    --env LEDGER_CERT_PATH=/tmp/networkcert.pem \
-    --env SITE_TOML_SOURCE=/tmp/site.toml \
-    --env PDO_LEDGER_URL=$PDO_LEDGER_URL \
-    --env USER_KEYS_FOLDER=/tmp/user_keys \
-    --env PREFERRED_ESERVICE_URL=$PREFERRED_ESERVICE_URL \
+    --volume ${SCRIPT_DIR}/.env:/webapp/.env:ro \
     $WEBAPP_IMAGE

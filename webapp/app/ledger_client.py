@@ -14,8 +14,11 @@ through. Filtering on it is how we tell wallets from policy/token contracts.
 import logging
 import threading
 
-# pdo_config sets env vars; must import before any pdo.* import.
-from . import pdo_config as cfg  # noqa: F401
+# settings (loaded during django.setup()) prepares the PDO environment.
+# Read it before importing pdo.* so the env vars are already set.
+from django.conf import settings
+
+_ = settings.PDO_HOME  # force settings to load (and set os.environ) before pdo.*
 
 from pdo.common.keys import ServiceKeys
 from pdo.submitter.create import create_submitter

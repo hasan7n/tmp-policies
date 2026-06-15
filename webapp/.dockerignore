@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+db.sqlite3
+runserver.log
+scratch/
+channel_key/
+.git/
+.gitignore
+.venv/
+.env
+.env.example
+.env.local.example
+Dockerfile
+.dockerignore
+README.md

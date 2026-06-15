@@ -11,7 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 class ConfigPageView(View):
-    """GET shows the config form; POST saves and redirects."""
+    """GET shows the config form; POST saves and redirects.
+
+    Only the user identity (``public_key``) is editable. Service URLs are
+    deployment configuration (Django settings, set via the environment).
+    """
 
     template_name = "config.html"
 
@@ -20,14 +24,8 @@ class ConfigPageView(View):
 
     def post(self, request):
         config = AppConfig.get_instance()
-        for field in (
-            "ledger_url",
-            "asset_registry_url",
-            "template_registry_url",
-            "public_key",
-        ):
-            if field in request.POST:
-                setattr(config, field, request.POST[field].strip())
+        if "public_key" in request.POST:
+            config.public_key = request.POST["public_key"].strip()
         config.save()
         target = "/" if config.is_configured() else "/config/"
         return redirect_with_msg(target, "Configuration saved.", "success")

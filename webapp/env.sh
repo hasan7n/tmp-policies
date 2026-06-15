@@ -1,7 +1,0 @@
-: "${LEDGER_CERT_PATH?Missing environment variable LEDGER_CERT_PATH}"
-: "${SITE_TOML_SOURCE?Missing environment variable SITE_TOML_SOURCE}"
-: "${PDO_LEDGER_URL?Missing environment variable PDO_LEDGER_URL}"
-: "${F_SERVICE_HOST?Missing environment variable F_SERVICE_HOST}"
-: "${USER_KEYS_FOLDER?Missing environment variable USER_KEYS_FOLDER}"
-: "${PDO_INSTALL_ROOT?Missing environment variable PDO_INSTALL_ROOT}"
-: "${PREFERRED_ESERVICE_URL?Missing environment variable PREFERRED_ESERVICE_URL}"

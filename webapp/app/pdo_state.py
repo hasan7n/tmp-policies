@@ -8,16 +8,18 @@ thereafter. Init is guarded by a lock so concurrent callers don't race.
 import sys
 import threading
 
-from pdo.client.builder.shell import parse_shell_command_line
+# settings (loaded during django.setup()) prepares the PDO environment.
+# Read its values before importing pdo.* so the env vars are already set.
+from django.conf import settings
 
-from .pdo_config import (
-    F_LOGFILE,
-    F_LOGLEVEL,
-    F_SERVICE_DB_FILE,
-    F_SERVICE_GROUPS_DB_FILE,
-    PDO_LEDGER_URL,
-    SCRATCH_DIR,
-)
+F_LOGFILE = settings.F_LOGFILE
+F_LOGLEVEL = settings.F_LOGLEVEL
+F_SERVICE_DB_FILE = settings.F_SERVICE_DB_FILE
+F_SERVICE_GROUPS_DB_FILE = settings.F_SERVICE_GROUPS_DB_FILE
+PDO_LEDGER_URL = settings.PDO_LEDGER_URL
+SCRATCH_DIR = settings.SCRATCH_DIR
+
+from pdo.client.builder.shell import parse_shell_command_line
 
 _lock = threading.Lock()
 _state = None

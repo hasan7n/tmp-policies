@@ -2,15 +2,13 @@ from django.db import models
 
 
 class AppConfig(models.Model):
-    """Singleton application configuration."""
+    """Singleton application configuration.
 
-    ledger_url = models.CharField(max_length=200, default="http://127.0.0.1:6600")
-    asset_registry_url = models.CharField(
-        max_length=200, default="http://127.0.0.1:8001"
-    )
-    template_registry_url = models.CharField(
-        max_length=200, default="http://127.0.0.1:8002"
-    )
+    Only the user identity is stored here. Service URLs (ledger, asset
+    registry, template registry) are deployment configuration and come from
+    the environment via Django settings, not from this table.
+    """
+
     public_key = models.TextField(default="")  # user identity (username for now)
 
     @classmethod

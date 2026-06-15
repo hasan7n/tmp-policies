@@ -12,9 +12,9 @@ import logging
 import os
 import shutil
 
+from django.conf import settings as cfg
 from django.core.management.base import BaseCommand
 
-from ... import pdo_config as cfg
 from ... import pdo_state
 
 logger = logging.getLogger(__name__)

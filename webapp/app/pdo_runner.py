@@ -16,8 +16,11 @@ import tempfile
 import threading
 import time
 
-# Importing pdo_config first ensures env vars are set before any pdo.* import.
-from . import pdo_config as cfg  # noqa: F401  (side-effect import)
+# settings (loaded during django.setup()) prepares the PDO environment.
+# Read it before importing pdo.* so the env vars are already set.
+from django.conf import settings as cfg
+
+_ = cfg.PDO_HOME  # force settings to load (and set os.environ) before pdo.*
 
 import pdo.identity.decentralized.signature_authority as signature_authority
 import pdo.download.decentralized.policy_agent as policy_agent

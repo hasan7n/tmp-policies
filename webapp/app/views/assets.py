@@ -1,6 +1,7 @@
 import json
 import logging
 
+from django.conf import settings
 from django.http import Http404
 from django.shortcuts import redirect, render
 
@@ -177,7 +178,7 @@ class AssetSetupView(BaseView):
 
             registry_pk = registry_asset["id"]
             asset_registry_url = (
-                f"{config.asset_registry_url.rstrip('/')}/api/assets/{registry_pk}/"
+                f"{settings.ASSET_REGISTRY_URL.rstrip('/')}/api/assets/{registry_pk}/"
             )
             registry_client.update_asset_metadata(
                 registry_pk, {"asset_registry_url": asset_registry_url}
