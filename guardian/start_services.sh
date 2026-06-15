@@ -1,6 +1,11 @@
 #!/bin/bash
 : "${F_GUARDIAN_HOST?Missing environment variable F_GUARDIAN_HOST}"
+: "${PDO_INSTALL_ROOT?Missing environment variable PDO_INSTALL_ROOT}"
+: "${PDO_CONTRACTS_ROOT?Missing environment variable PDO_CONTRACTS_ROOT}"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+export PDO_SOURCE_ROOT=${PDO_SOURCE_ROOT:-${PDO_CONTRACTS_ROOT}/private-data-objects}
 export PDO_HOME="${PDO_INSTALL_ROOT}/opt/pdo"
 export PDO_LEDGER_URL="http://localhost:19088"  # not used?
 source ${PDO_SOURCE_ROOT}/build/common-config.sh
@@ -19,7 +24,7 @@ ${KEYGEN} --keyfile ${PDO_HOME}/keys/guardian_sservice --format pem
 try ${PDO_HOME}/contracts/contracts/scripts/ss_start.sh -c -o ${PDO_HOME}/logs -- \
     --loglevel debug \
     --config guardian_service.toml \
-    --config-dir ${PDO_HOME}/etc/contracts \
+    --config-dir $SCRIPT_DIR \
     --identity guardian_sservice \
     --bind host ${F_GUARDIAN_HOST}
 
@@ -29,7 +34,7 @@ sleep 3
 try ${PDO_HOME}/contracts/contracts/scripts/gs_start.sh -c -o ${PDO_HOME}/logs -- \
     --loglevel debug \
     --config guardian_service.toml \
-    --config-dir ${PDO_HOME}/etc/contracts \
+    --config-dir $SCRIPT_DIR \
     --identity guardian_service \
     --bind host ${F_GUARDIAN_HOST}
 

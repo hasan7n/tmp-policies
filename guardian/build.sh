@@ -1,5 +1,7 @@
-PDO_CLIENT_IMAGE="mlcommons/pdo_base_client:latest"
-GUARDIAN_IMAGE="mlcommons/toy_guardian:latest"
+PDO_CLIENT_IMAGE=""
+GUARDIAN_IMAGE=""
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
     cat <<EOF
@@ -8,8 +10,8 @@ Usage: $(basename "$0") [options]
 Build the guardian Docker image.
 
 Options:
-  -c, --client-image IMAGE   Base PDO client image (default: $PDO_CLIENT_IMAGE)
-  -i, --image IMAGE          Image tag to build (default: $GUARDIAN_IMAGE)
+  -c, --client-image IMAGE   Base PDO client image (required)
+  -i, --image IMAGE          Image tag to build (required)
   -h, --help                 Show this help and exit
 EOF
 }
@@ -23,4 +25,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-docker build --build-arg PDO_CLIENT_IMAGE=$PDO_CLIENT_IMAGE -f Dockerfile -t $GUARDIAN_IMAGE .
+[ -n "$PDO_CLIENT_IMAGE" ]  || { echo "Missing required option: -c/--client-image" >&2; usage >&2; exit 1; }
+[ -n "$GUARDIAN_IMAGE" ]    || { echo "Missing required option: -i/--image" >&2; usage >&2; exit 1; }
+
+docker build --build-arg PDO_CLIENT_IMAGE=$PDO_CLIENT_IMAGE -f ${SCRIPT_DIR}/Dockerfile -t $GUARDIAN_IMAGE ${SCRIPT_DIR}

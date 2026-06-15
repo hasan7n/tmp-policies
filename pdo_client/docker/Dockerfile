@@ -11,11 +11,10 @@ ENV PDO_INSTALL_ROOT=/pdo_install
 
 WORKDIR /
 
-# Reuse the same scripts the host flow uses (build context is the pdo_client_v2
-# folder, see build.sh). The runners live in scripts/ alongside the shared
-# scripts they source, so the container resolves them exactly as the host does.
-# setup/ is only needed at build time.
-COPY scripts/ /scripts/
+# Copy the build inputs and do the heavy build first. setup/ holds the install
+# steps and activate_env.sh (sourced both at build time and at runtime by the
+# runners), so it stays in the image. The runtime scripts are copied last
+# (below) so editing them does not invalidate these cached build layers.
 COPY setup/ /setup/
 
 RUN bash /setup/install_system_deps.sh
@@ -24,13 +23,17 @@ RUN bash /setup/install_pdo_client.sh
 RUN bash /setup/install_contracts.sh --families "${CONTRACT_FAMILIES}"
 
 RUN rm -rf ${PDO_INSTALL_ROOT}/opt/pdo/keys/*
+COPY scripts/ /scripts/
 
-# Non-root user + group 0 access so any host uid can read/write mounted
-# volumes when launched with `--user $(id -u):0`. New files written at
-# runtime inherit gid 0 from the process's egid.
+# Non-root user + group 0 access on the build outputs so any host uid can
+# read/write mounted volumes when launched with `--user $(id -u):0`. New files
+# written at runtime inherit gid 0 from the process's egid.
 RUN useradd -m -u 1000 pdo_user && \
     chgrp -R 0 ${PDO_INSTALL_ROOT}/opt/pdo ${PDO_CONTRACTS_ROOT}/download-contract/test /scripts && \
     chmod -R g=u ${PDO_INSTALL_ROOT}/opt/pdo ${PDO_CONTRACTS_ROOT}/download-contract/test /scripts
+
+# Runtime scripts last: editing them only rebuilds from this layer down.
+
 USER 1000:0
 
 # bash is the entrypoint; CMD is the runner (+ args) to execute. The default

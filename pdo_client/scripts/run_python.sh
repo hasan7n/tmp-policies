@@ -9,6 +9,7 @@ SITE_TOML_SOURCE=""
 F_SERVICE_HOST=""
 PDO_LEDGER_URL=""
 USER_KEYS_FOLDER=""
+GUARDIAN_URL=""
 
 usage() {
     cat <<EOF
@@ -23,6 +24,7 @@ Options:
   -s, --site-toml PATH     Site toml source (required)
   -H, --host HOST          Service host / F_SERVICE_HOST (required)
   -l, --ledger-url URL     Ledger URL (required)
+  -g, --guardian-url URL   Guardian URL (required)
   -k, --keys-folder DIR    Existing user keys folder (required)
   -h, --help               Show this help and exit
 EOF
@@ -34,6 +36,7 @@ while [ $# -gt 0 ]; do
         -s|--site-toml)   SITE_TOML_SOURCE="$2"; shift 2 ;;
         -H|--host)        F_SERVICE_HOST="$2"; shift 2 ;;
         -l|--ledger-url)  PDO_LEDGER_URL="$2"; shift 2 ;;
+        -g|--guardian-url) GUARDIAN_URL="$2"; shift 2 ;;
         -k|--keys-folder) USER_KEYS_FOLDER="$2"; shift 2 ;;
         -h|--help)        usage; exit 0 ;;
         *)                echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
@@ -45,13 +48,14 @@ done
 [ -n "$SITE_TOML_SOURCE" ] || { echo "Missing required option: -s/--site-toml" >&2; usage >&2; exit 1; }
 [ -n "$F_SERVICE_HOST" ]   || { echo "Missing required option: -H/--host" >&2; usage >&2; exit 1; }
 [ -n "$PDO_LEDGER_URL" ]   || { echo "Missing required option: -l/--ledger-url" >&2; usage >&2; exit 1; }
+[ -n "$GUARDIAN_URL" ]     || { echo "Missing required option: -g/--guardian-url" >&2; usage >&2; exit 1; }
 [ -n "$USER_KEYS_FOLDER" ] || { echo "Missing required option: -k/--keys-folder" >&2; usage >&2; exit 1; }
 
-source ${SCRIPTS_DIR}/activate_env.sh
+source ${SCRIPT_DIR}/../setup/activate_env.sh
 
 PYTHON_TEST_DIR=${PDO_CONTRACTS_ROOT}/download-contract/test/python
 
-export LEDGER_CERT_PATH SITE_TOML_SOURCE F_SERVICE_HOST PDO_LEDGER_URL USER_KEYS_FOLDER
+export LEDGER_CERT_PATH SITE_TOML_SOURCE F_SERVICE_HOST PDO_LEDGER_URL USER_KEYS_FOLDER GUARDIAN_URL
 python ${PYTHON_TEST_DIR}/startup.py
 python ${PYTHON_TEST_DIR}/stateless_test.py
 python ${PYTHON_TEST_DIR}/cleanup.py

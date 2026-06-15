@@ -44,7 +44,7 @@ done
 [ -n "$F_SERVICE_HOST" ]   || { echo "Missing required option: -H/--host" >&2; usage >&2; exit 1; }
 [ -n "$PDO_LEDGER_URL" ]   || { echo "Missing required option: -l/--ledger-url" >&2; usage >&2; exit 1; }
 
-source ${SCRIPTS_DIR}/activate_env.sh
+source ${SCRIPT_DIR}/../setup/activate_env.sh
 bash ${SCRIPTS_DIR}/prepare_site.sh \
     --cert-path "$LEDGER_CERT_PATH" \
     --site-toml "$SITE_TOML_SOURCE" \

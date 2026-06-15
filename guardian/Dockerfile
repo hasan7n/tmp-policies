@@ -11,7 +11,6 @@ COPY . /project/my_guardian
 RUN ${PDO_INSTALL_ROOT}/bin/pip install -e /project/my_guardian
 
 # Configure guardian service to use the new operation
-RUN sed -i "s|^## Operations = '\''pdo.common.operations'\''|Operations = '\''guardian_operation'\''|" ${PDO_INSTALL_ROOT}/opt/pdo/etc/contracts/guardian_service.toml
 RUN chgrp -R 0 /project && \
     chmod -R g=u /project
 USER 1000:0

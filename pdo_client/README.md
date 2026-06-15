@@ -8,18 +8,20 @@ each step in `scripts/` and has thin wrappers for each environment.
 ## Layout
 
 ```
-setup/                       # one-off build/install steps (args; the two roots
-                             # PDO_INSTALL_ROOT + PDO_CONTRACTS_ROOT are env)
+setup/                       # build/install steps + env activation (args; the
+                             # two roots PDO_INSTALL_ROOT + PDO_CONTRACTS_ROOT
+                             # are env)
   install_system_deps.sh     # apt deps + wasi-sdk
   clone_contracts.sh         # clone pdo-contracts + checkout branch
   install_pdo_client.sh      # make client + jupyter + lmdb pip deps
   install_contracts.sh       # Local.cmake + make/install contracts
   setup.sh                   # install_pdo_client.sh + install_contracts.sh
+  activate_env.sh            # put the PDO client env in scope (source this);
+                             # lives here because install_contracts + runners use it
 
-scripts/                     # shared pieces + the runners (one folder)
+scripts/                     # the runners + their runtime helper (one folder)
                              # (export PDO_INSTALL_ROOT + PDO_CONTRACTS_ROOT first;
                              #  each runner checks them)
-  activate_env.sh            # put the PDO client env in scope (source this)
   prepare_site.sh            # copy ledger cert + site toml into PDO_HOME (args)
   run_cli.sh                 # download-contract shell test
   run_python.sh              # download-contract python test
@@ -27,16 +29,17 @@ scripts/                     # shared pieces + the runners (one folder)
   cleanup.sh                 # remove the install + build dirs
 
 docker/                      # containerized flow
-  Dockerfile                 # COPYs scripts/ + setup/, RUNs setup/*,
-                             # ENTRYPOINT = /scripts/run_cli.sh
+  Dockerfile                 # COPYs setup/ + builds, then COPYs scripts/ last so
+                             # editing them keeps the build cache; CMD = run_cli.sh
   build.sh                   # -i image, -r repo, -b branch (all required)
   run_cli.sh                 # mounts host files, invokes scripts/run_cli.sh in-container
   run_python.sh              # mounts host files, invokes scripts/run_python.sh in-container
   show_eservice_logs.sh      # debug helper for the services_container
 ```
 
-Each `scripts/run_*.sh` exposes named args, then sources/runs the sibling shared
-scripts to do the work — arg parsing and test logic live in the one file.
+Each `scripts/run_*.sh` exposes named args, then sources `setup/activate_env.sh`
+and runs `prepare_site.sh` to do the work — arg parsing and test logic live in
+the one file.
 
 There is **one** runner per task, used by both flows: the image copies `scripts/`,
 and `docker/run_*.sh` just mounts the host files and invokes the very same

@@ -29,7 +29,7 @@ done
 # Required arguments
 [ -n "$CONTRACT_FAMILIES" ] || { echo "Missing required option: -f/--families" >&2; usage >&2; exit 1; }
 
-source ${SCRIPT_DIR}/../scripts/activate_env.sh
+source ${SCRIPT_DIR}/activate_env.sh
 
 echo "SET(CONTRACT_FAMILIES ${CONTRACT_FAMILIES})" > ${PDO_CONTRACTS_ROOT}/Local.cmake
 make -C ${PDO_CONTRACTS_ROOT}

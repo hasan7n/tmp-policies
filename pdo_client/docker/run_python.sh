@@ -4,7 +4,7 @@ SITE_TOML_SOURCE=""
 F_SERVICE_HOST=""
 PDO_LEDGER_URL=""
 USER_KEYS_FOLDER=""
-
+GUARDIAN_URL=""
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [options]
@@ -32,6 +32,7 @@ while [ $# -gt 0 ]; do
         -H|--host)        F_SERVICE_HOST="$2"; shift 2 ;;
         -l|--ledger-url)  PDO_LEDGER_URL="$2"; shift 2 ;;
         -k|--keys-folder) USER_KEYS_FOLDER="$2"; shift 2 ;;
+        -g|--guardian-url) GUARDIAN_URL="$2"; shift 2 ;;
         -h|--help)        usage; exit 0 ;;
         *)                echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
@@ -44,10 +45,12 @@ done
 [ -n "$F_SERVICE_HOST" ]   || { echo "Missing required option: -H/--host" >&2; usage >&2; exit 1; }
 [ -n "$PDO_LEDGER_URL" ]   || { echo "Missing required option: -l/--ledger-url" >&2; usage >&2; exit 1; }
 [ -n "$USER_KEYS_FOLDER" ] || { echo "Missing required option: -k/--keys-folder" >&2; usage >&2; exit 1; }
+[ -n "$GUARDIAN_URL" ]     || { echo "Missing required option: -g/--guardian-url" >&2; usage >&2; exit 1; }
 
 # Override the default CMD to run the python runner inside the container.
 docker run --rm --name policies_client_container \
     --user "$(id -u):0" \
+    --env PYTHONUNBUFFERED=1 \
     --volume ${LEDGER_CERT_PATH}:/tmp/networkcert.pem \
     --volume ${SITE_TOML_SOURCE}:/tmp/site.toml \
     --volume ${USER_KEYS_FOLDER}:/tmp/user_keys \
@@ -56,4 +59,5 @@ docker run --rm --name policies_client_container \
     --site-toml /tmp/site.toml \
     --host "$F_SERVICE_HOST" \
     --ledger-url "$PDO_LEDGER_URL" \
+    --guardian-url "$GUARDIAN_URL" \
     --keys-folder /tmp/user_keys
