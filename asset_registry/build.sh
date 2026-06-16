@@ -1,4 +1,4 @@
-ASSET_REGISTRY_IMAGE="mlcommons/pdo_toy_asset_registry:latest"
+ASSET_REGISTRY_IMAGE=""
 
 usage() {
     cat <<EOF
@@ -7,7 +7,7 @@ Usage: $(basename "$0") [options]
 Build the asset_registry Docker image.
 
 Options:
-  -i, --image IMAGE        Image tag to build (default: $ASSET_REGISTRY_IMAGE)
+  -i, --image IMAGE        Image tag to build (required)
   -h, --help               Show this help and exit
 EOF
 }
@@ -19,5 +19,8 @@ while [ $# -gt 0 ]; do
         *)          echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
 done
+
+# Required arguments
+[ -n "$ASSET_REGISTRY_IMAGE" ] || { echo "Missing required option: -i/--image" >&2; usage >&2; exit 1; }
 
 docker build -t $ASSET_REGISTRY_IMAGE -f ./Dockerfile .

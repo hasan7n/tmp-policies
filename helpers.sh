@@ -22,12 +22,6 @@ bash pdo_client/docker/run_cli.sh \
     --ledger-url http://$MY_HOST:6600 \
     --eservice-url random
 
-# generate user keys for python test
-mkdir -p /tmp/pdo_keys
-bash docker_generate_user_keys.sh \
-    --keys-folder /tmp/pdo_keys \
-    --image mlcommons/pdo_base_client:latest \
-    --users "user1 user2 user3 user4 user5 data_owner data_user vc"
 
 # run policy client python test
 bash pdo_client/docker/run_python.sh \

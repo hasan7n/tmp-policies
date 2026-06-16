@@ -1,7 +1,7 @@
 # !/bin/bash
 set -e
 
-LEDGER_WS="/tmp/pdo_ledger"
+LEDGER_WS=""
 PDO_LEDGER_IMAGE=""
 INTERFACE=""
 LEDGER_PORT=""
@@ -13,7 +13,7 @@ Usage: $(basename "$0") [options]
 Run the PDO ledger (CCF) container.
 
 Options:
-  -w, --workspace DIR      Ledger workspace dir (default: $LEDGER_WS)
+  -w, --workspace DIR      Ledger workspace dir (required)
   -i, --image IMAGE        Ledger image to run (required)
   -n, --interface IFACE    Host network interface (required)
   -p, --port PORT          Ledger port (required)
@@ -33,6 +33,7 @@ while [ $# -gt 0 ]; do
 done
 
 # Required arguments
+[ -n "$LEDGER_WS" ] || { echo "Missing required option: -w/--workspace" >&2; usage >&2; exit 1; }
 [ -n "$PDO_LEDGER_IMAGE" ]           || { echo "Missing required option: -i/--image" >&2; usage >&2; exit 1; }
 [ -n "$INTERFACE" ] || { echo "Missing required option: -n/--interface" >&2; usage >&2; exit 1; }
 [ -n "$LEDGER_PORT" ]                || { echo "Missing required option: -p/--port" >&2; usage >&2; exit 1; }

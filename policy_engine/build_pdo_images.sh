@@ -1,10 +1,10 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-PDO_LEDGER_IMAGE="mlcommons/pdo_ledger:latest"
-PDO_SERVICES_IMAGE="mlcommons/pdo_services:latest"
-REPOSITORY="https://github.com/hasan7n/pdo-contracts"
-BRANCH="poc"
+PDO_LEDGER_IMAGE=""
+PDO_SERVICES_IMAGE=""
+REPOSITORY=""
+BRANCH=""
 
 usage() {
     cat <<EOF
@@ -13,10 +13,10 @@ Usage: $(basename "$0") [options]
 Clone pdo-contracts and build the PDO ledger/services Docker images.
 
 Options:
-  -l, --ledger-image IMAGE     Tag for the built ledger image (default: $PDO_LEDGER_IMAGE)
-  -s, --services-image IMAGE   Tag for the built services image (default: $PDO_SERVICES_IMAGE)
-  -r, --repository URL         pdo-contracts git repository (default: $REPOSITORY)
-  -b, --branch BRANCH          Branch to check out (default: $BRANCH)
+  -l, --ledger-image IMAGE     Tag for the built ledger image (required)
+  -s, --services-image IMAGE   Tag for the built services image (required)
+  -r, --repository URL         pdo-contracts git repository (required)
+  -b, --branch BRANCH          Branch to check out (required)
   -h, --help                   Show this help and exit
 EOF
 }
@@ -31,6 +31,12 @@ while [ $# -gt 0 ]; do
         *)                   echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
 done
+
+# Required arguments
+[ -n "$PDO_LEDGER_IMAGE" ] || { echo "Missing required option: -l/--ledger-image" >&2; usage >&2; exit 1; }
+[ -n "$PDO_SERVICES_IMAGE" ] || { echo "Missing required option: -s/--services-image" >&2; usage >&2; exit 1; }
+[ -n "$REPOSITORY" ] || { echo "Missing required option: -r/--repository" >&2; usage >&2; exit 1; }
+[ -n "$BRANCH" ] || { echo "Missing required option: -b/--branch" >&2; usage >&2; exit 1; }
 
 # Some config
 TMP_PDO_CONTRACTS_DIR=/tmp/pdo-contracts

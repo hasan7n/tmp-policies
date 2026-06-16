@@ -1,4 +1,4 @@
-TEMPLATE_REGISTRY_IMAGE="mlcommons/pdo_toy_template_registry:latest"
+TEMPLATE_REGISTRY_IMAGE=""
 
 usage() {
     cat <<EOF
@@ -7,7 +7,7 @@ Usage: $(basename "$0") [options]
 Build the template_registry Docker image.
 
 Options:
-  -i, --image IMAGE        Image tag to build (default: $TEMPLATE_REGISTRY_IMAGE)
+  -i, --image IMAGE        Image tag to build (required)
   -h, --help               Show this help and exit
 EOF
 }
@@ -19,5 +19,8 @@ while [ $# -gt 0 ]; do
         *)          echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
 done
+
+# Required arguments
+[ -n "$TEMPLATE_REGISTRY_IMAGE" ] || { echo "Missing required option: -i/--image" >&2; usage >&2; exit 1; }
 
 docker build -t $TEMPLATE_REGISTRY_IMAGE -f ./Dockerfile .

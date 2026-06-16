@@ -1,7 +1,7 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-PDO_CONTRACTS_DIR=/home/hasan/work/pdos/pdo-contracts
+PDO_CONTRACTS_DIR=""
 
 usage() {
     cat <<EOF
@@ -10,7 +10,7 @@ Usage: $(basename "$0") [options]
 Build the PDO ledger/services images from a local pdo-contracts checkout.
 
 Options:
-  -d, --contracts-dir DIR  Local pdo-contracts directory (default: $PDO_CONTRACTS_DIR)
+  -d, --contracts-dir DIR  Local pdo-contracts directory (required)
   -h, --help               Show this help and exit
 EOF
 }
@@ -22,6 +22,9 @@ while [ $# -gt 0 ]; do
         *)                  echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
 done
+
+# Required arguments
+[ -n "$PDO_CONTRACTS_DIR" ] || { echo "Missing required option: -d/--contracts-dir" >&2; usage >&2; exit 1; }
 
 # Some config
 TMP_PDO_CONTRACTS_DIR=/tmp/pdo-contracts

@@ -1,8 +1,8 @@
 # !/bin/bash
 set -e
 
-SERVICES_WS="/tmp/pdo_services"
-LEDGER_CERT_PATH="/tmp/pdo_ledger/ccf/keys/networkcert.pem"
+SERVICES_WS=""
+LEDGER_CERT_PATH=""
 PDO_LEDGER_URL=""
 PDO_SERVICES_IMAGE=""
 INTERFACE=""
@@ -14,8 +14,8 @@ Usage: $(basename "$0") [options]
 Run the PDO services container.
 
 Options:
-  -w, --workspace DIR      Services workspace dir (default: $SERVICES_WS)
-  -c, --cert-path PATH     Ledger cert path to copy in (default: $LEDGER_CERT_PATH)
+  -w, --workspace DIR      Services workspace dir (required)
+  -c, --cert-path PATH     Ledger cert path to copy in (required)
   -l, --ledger-url URL     Ledger URL (required)
   -i, --image IMAGE        Services image to run (required)
   -n, --interface IFACE    Host network interface (required)
@@ -39,6 +39,8 @@ done
 [ -n "$PDO_LEDGER_URL" ]             || { echo "Missing required option: -l/--ledger-url" >&2; usage >&2; exit 1; }
 [ -n "$PDO_SERVICES_IMAGE" ]         || { echo "Missing required option: -i/--image" >&2; usage >&2; exit 1; }
 [ -n "$INTERFACE" ] || { echo "Missing required option: -n/--interface" >&2; usage >&2; exit 1; }
+[ -n "$SERVICES_WS" ] || { echo "Missing required option: -w/--workspace" >&2; usage >&2; exit 1; }
+[ -n "$LEDGER_CERT_PATH" ] || { echo "Missing required option: -c/--cert-path" >&2; usage >&2; exit 1; }
 
 # Cleanup
 rm -rf ${SERVICES_WS}
