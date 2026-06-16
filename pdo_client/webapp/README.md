@@ -67,6 +67,34 @@ as args:
     --template-registry-url http://localhost:8002
 ```
 
+## Seed (optional)
+
+Pass `--seed PATH` to run a Python seed script after `bootstrap` and before the
+dev server starts — a way to bring the webapp up with PDO state already in
+place (run part of a flow, like the download-contract python tests). It runs
+via `manage.py seed`, which executes the file with these globals injected (no
+imports needed): `state`, `bindings`, `runner` (`app.pdo_runner`), and
+`settings`. Django is initialized, so the app models are importable too. See
+`seeds/example_seed.py`.
+
+For editor support (VS Code / Pylance) on the injected globals, import their
+types under a `TYPE_CHECKING` guard — it's skipped at runtime but gives hover
+and autocomplete on `runner.*`:
+
+```python
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from seed_context import runner, state, bindings, settings
+```
+
+```
+# bare metal
+./run.sh ... --seed seeds/example_seed.py
+
+# docker (the host script is bind-mounted into the container automatically)
+./run_docker.sh ... --seed seeds/example_seed.py
+```
+
 ## Cleanup
 
 ```

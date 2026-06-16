@@ -9,6 +9,7 @@ LEDGER_URL=""
 SERVICE_HOST=""
 ASSET_REGISTRY_URL=""
 TEMPLATE_REGISTRY_URL=""
+SEED_SCRIPT=""
 
 usage() {
     cat <<EOF
@@ -30,6 +31,8 @@ Options:
   -H, --service-host HOST        Service site host (required)
   -a, --asset-registry-url URL   Asset registry URL (required)
   -t, --template-registry-url URL Template registry URL (required)
+  -e, --seed PATH                Seed script (a PDO flow) on the host, run after
+                                 bootstrap and before the dev server (optional)
   -h, --help                     Show this help and exit
 EOF
 }
@@ -47,6 +50,7 @@ while [ $# -gt 0 ]; do
         -H|--service-host)         SERVICE_HOST="$2"; shift 2 ;;
         -a|--asset-registry-url)   ASSET_REGISTRY_URL="$2"; shift 2 ;;
         -t|--template-registry-url) TEMPLATE_REGISTRY_URL="$2"; shift 2 ;;
+        -e|--seed)                 SEED_SCRIPT="$2"; shift 2 ;;
         -h|--help)                 usage; exit 0 ;;
         *)                         echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
@@ -68,6 +72,16 @@ done
 # Ensure the host scratch dir exists so the bind mount has a source.
 mkdir -p "$SCRATCH_DIR"
 
+# Optional seed: bind-mount the host script onto a fixed container path and
+# forward it to run.sh. Both arrays are empty when no seed was requested.
+SEED_MOUNT=()
+SEED_ARG=()
+if [ -n "$SEED_SCRIPT" ]; then
+    [ -f "$SEED_SCRIPT" ] || { echo "Seed script not found: $SEED_SCRIPT" >&2; exit 1; }
+    SEED_MOUNT=(--volume "${SEED_SCRIPT}:/tmp/seed.py")
+    SEED_ARG=(--seed /tmp/seed.py)
+fi
+
 # Bind-mount host files onto fixed container paths, then forward those paths
 # (and the rest of the config) to /webapp/run.sh as args. PDO_INSTALL_ROOT and
 # PDO_CONTRACTS_ROOT come from the image, so run.sh needs no --install-root.
@@ -77,6 +91,7 @@ docker run --rm --user "$(id -u):0" --name policies_web_client \
     --volume ${SITE_TOML_SOURCE}:/tmp/site.toml \
     --volume ${USER_KEYS_FOLDER}:/tmp/user_keys \
     --volume ${SCRATCH_DIR}:/tmp/scratch \
+    "${SEED_MOUNT[@]}" \
     $WEBAPP_IMAGE /webapp/run.sh \
         --interface 0.0.0.0 --port 8000 \
         --ledger-url "$LEDGER_URL" \
@@ -86,4 +101,5 @@ docker run --rm --user "$(id -u):0" --name policies_web_client \
         --keys-folder /tmp/user_keys \
         --scratch /tmp/scratch \
         --asset-registry-url "$ASSET_REGISTRY_URL" \
-        --template-registry-url "$TEMPLATE_REGISTRY_URL"
+        --template-registry-url "$TEMPLATE_REGISTRY_URL" \
+        "${SEED_ARG[@]}"

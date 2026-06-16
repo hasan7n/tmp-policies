@@ -21,6 +21,9 @@ PREFERRED_ESERVICE_URL="random"
 PDO_LOG_FILE="__screen__"
 PDO_LOG_LEVEL="warn"
 
+# Optional seed script: a PDO flow run after bootstrap and before runserver.
+SEED_SCRIPT=""
+
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [options]
@@ -44,6 +47,8 @@ Options:
       --preferred-eservice URL   Preferred eservice (default: $PREFERRED_ESERVICE_URL)
       --logfile FILE             PDO log file (default: $PDO_LOG_FILE)
       --loglevel LEVEL           PDO log level (default: $PDO_LOG_LEVEL)
+  -e, --seed PATH                Seed script (a PDO flow) to run after bootstrap,
+                                 before the dev server starts (optional)
   -h, --help                     Show this help and exit
 
 PDO_INSTALL_ROOT and PDO_CONTRACTS_ROOT must be set in the environment by the
@@ -67,6 +72,7 @@ while [ $# -gt 0 ]; do
         --preferred-eservice)      PREFERRED_ESERVICE_URL="$2"; shift 2 ;;
         --logfile)                 PDO_LOG_FILE="$2"; shift 2 ;;
         --loglevel)                PDO_LOG_LEVEL="$2"; shift 2 ;;
+        -e|--seed)                 SEED_SCRIPT="$2"; shift 2 ;;
         -h|--help)                 usage; exit 0 ;;
         *)                         echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
@@ -103,4 +109,8 @@ source "${SCRIPT_DIR}/../setup/activate_env.sh"
 
 python $SCRIPT_DIR/manage.py migrate
 python $SCRIPT_DIR/manage.py bootstrap
+if [ -n "$SEED_SCRIPT" ]; then
+    [ -f "$SEED_SCRIPT" ] || { echo "Seed script not found: $SEED_SCRIPT" >&2; exit 1; }
+    python -u "$SCRIPT_DIR/manage.py" seed "$SEED_SCRIPT"
+fi
 exec python -u "$SCRIPT_DIR/manage.py" runserver "$INTERFACE:$PORT"

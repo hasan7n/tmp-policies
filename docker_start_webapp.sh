@@ -1,5 +1,8 @@
-rm -rf /tmp/pdo_scratch
-mkdir -p /tmp/pdo_scratch
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+rm -rf $SCRIPT_DIR/pdo_scratch
+mkdir -p $SCRIPT_DIR/pdo_scratch
+
 
 INTERFACE="$(hostname -I | awk '{print $1}')"
 bash pdo_client/docker/run_webapp.sh \
@@ -9,8 +12,9 @@ bash pdo_client/docker/run_webapp.sh \
     --cert-path /tmp/pdo_ledger/ccf/keys/networkcert.pem \
     --site-toml /tmp/pdo_services/services/etc/site.toml \
     --keys-folder /tmp/pdo_keys \
-    --scratch /tmp/pdo_scratch \
+    --scratch $SCRIPT_DIR/pdo_scratch \
     --ledger-url http://$INTERFACE:6600 \
     --service-host $INTERFACE \
     --asset-registry-url http://$INTERFACE:8001 \
-    --template-registry-url http://$INTERFACE:8002
+    --template-registry-url http://$INTERFACE:8002 \
+    --seed $SCRIPT_DIR/pdo_client/webapp/seeds/example_seed.py
