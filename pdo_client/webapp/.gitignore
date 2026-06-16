@@ -2,6 +2,5 @@ scratch
 channel_key
 db.sqlite3
 runserver.log
-.env
 __pycache__/
 *.pyc

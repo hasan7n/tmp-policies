@@ -9,7 +9,7 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [options]
 
-Build the PDO client image (build context is the pdo_client_v2 folder).
+Build the PDO client + webapp image (build context is the pdo_client folder).
 
 Options:
   -i, --image IMAGE        Image tag to build (required)
@@ -37,9 +37,10 @@ done
 [ -n "$BRANCH" ]            || { echo "Missing required option: -b/--branch" >&2; usage >&2; exit 1; }
 [ -n "$CONTRACT_FAMILIES" ] || { echo "Missing required option: -f/--families" >&2; usage >&2; exit 1; }
 
-# Build context is the parent (pdo_client_v2) so the Dockerfile can COPY scripts/ + setup/.
+# Build context is the parent (pdo_client) so the Dockerfile can COPY
+# setup/ + scripts/ + webapp/. The merged Dockerfile lives at the repo root.
 docker build -t $PDO_CLIENT_IMAGE \
     --build-arg REPOSITORY=$REPOSITORY \
     --build-arg BRANCH=$BRANCH \
     --build-arg CONTRACT_FAMILIES="$CONTRACT_FAMILIES" \
-    -f ${SCRIPT_DIR}/Dockerfile ${SCRIPT_DIR}/..
+    -f ${SCRIPT_DIR}/Dockerfile ${SCRIPT_DIR}

@@ -1,18 +1,23 @@
 import os
 from pathlib import Path
 
-import environ
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load configuration from a .env file. read_env() populates os.environ so the
-# pdo.* layer (which reads PDO_* env vars at import time) sees the same values.
-# Settings are loaded during django.setup(), before any pdo.* import, so the
-# environment is fully prepared by the time those modules load.
-env = environ.Env()
-env_file = os.path.join(BASE_DIR, ".env")
-if os.path.isfile(env_file):
-    env.read_env(env_file)
+
+def _require_env(name):
+    """Return the named environment variable or raise.
+
+    All configuration is passed via the environment; run.sh / run_docker.sh
+    take it as args and export it before launch (there is no .env file).
+    Settings load during django.setup(), before any pdo.* import, so the
+    environment is fully prepared by the time those modules load.
+    """
+    try:
+        return os.environ[name]
+    except KeyError:
+        raise ImproperlyConfigured(f"Required environment variable {name} is not set")
 
 SECRET_KEY = "django-insecure-client-app-key-change-in-production"
 DEBUG = True
@@ -20,41 +25,39 @@ ALLOWED_HOSTS = ["*"]
 
 # -----------------------------------------------------------------
 # PDO + service configuration (formerly app/pdo_config.py).
-# Every value is required and read from the environment (.env); there are no
-# defaults. See .env.example (docker) and .env.local.example (bare metal).
+# Every value is required and read from the environment; there are no defaults.
 # -----------------------------------------------------------------
-PDO_INSTALL_ROOT = env("PDO_INSTALL_ROOT")
-PDO_LEDGER_URL = env("PDO_LEDGER_URL")
-PDO_LEDGER_TYPE = env("PDO_LEDGER_TYPE")
-F_SERVICE_HOST = env("F_SERVICE_HOST")
-LEDGER_CERT_PATH = env("LEDGER_CERT_PATH")
-SITE_TOML_SOURCE = env("SITE_TOML_SOURCE")
-USER_KEYS_FOLDER = env("USER_KEYS_FOLDER")
-PREFERRED_ESERVICE_URL = env("PREFERRED_ESERVICE_URL")
-ASSET_REGISTRY_URL = env("ASSET_REGISTRY_URL")
-TEMPLATE_REGISTRY_URL = env("TEMPLATE_REGISTRY_URL")
-F_LOGFILE = env("PDO_LOG_FILE")
-F_LOGLEVEL = env("PDO_LOG_LEVEL")
+PDO_LEDGER_URL = _require_env("PDO_LEDGER_URL")
+PDO_LEDGER_TYPE = _require_env("PDO_LEDGER_TYPE")
+F_SERVICE_HOST = _require_env("F_SERVICE_HOST")
+LEDGER_CERT_PATH = _require_env("LEDGER_CERT_PATH")
+SITE_TOML_SOURCE = _require_env("SITE_TOML_SOURCE")
+USER_KEYS_FOLDER = _require_env("USER_KEYS_FOLDER")
+PREFERRED_ESERVICE_URL = _require_env("PREFERRED_ESERVICE_URL")
+ASSET_REGISTRY_URL = _require_env("ASSET_REGISTRY_URL")
+TEMPLATE_REGISTRY_URL = _require_env("TEMPLATE_REGISTRY_URL")
+SCRATCH_DIR = _require_env("SCRATCH_DIR")
+F_LOGFILE = _require_env("PDO_LOG_FILE")
+F_LOGLEVEL = _require_env("PDO_LOG_LEVEL")
 
-# The ledger URL is a single value; LEDGER_URL is an alias for display use.
-LEDGER_URL = PDO_LEDGER_URL
-
-# Derived PDO paths.
+# PDO install roots are expected in the environment (set in the image; exported
+# by the caller for a bare-metal run). PDO_CONTRACTS_ROOT is consumed by the
+# pdo.* layer, so validate it here too.
+PDO_INSTALL_ROOT = _require_env("PDO_INSTALL_ROOT")
+_require_env("PDO_CONTRACTS_ROOT")
 PDO_HOME = f"{PDO_INSTALL_ROOT}/opt/pdo"
 PDO_LEDGER_KEY_ROOT = f"{PDO_HOME}/etc/keys/ledger"
+F_SERVICE_SITE_FILE = f"{PDO_HOME}/etc/sites/{F_SERVICE_HOST}.toml"
 
 # pdo.* libraries read these from the process environment at import time, so
 # mirror the resolved values into os.environ before any pdo.* import.
-os.environ["PDO_INSTALL_ROOT"] = PDO_INSTALL_ROOT
 os.environ["PDO_HOME"] = PDO_HOME
 os.environ["PDO_LEDGER_KEY_ROOT"] = PDO_LEDGER_KEY_ROOT
 os.environ["PDO_LEDGER_TYPE"] = PDO_LEDGER_TYPE
 os.environ["PDO_LEDGER_URL"] = PDO_LEDGER_URL
 
-# Scratch + derived file locations used by the PDO helpers.
-SCRATCH_DIR = str(BASE_DIR / "scratch")
+# Derived file locations under the (env-provided) scratch directory.
 DOWNLOAD_OUTPUT_DIR = os.path.join(SCRATCH_DIR, "downloads")
-F_SERVICE_SITE_FILE = f"{PDO_HOME}/etc/sites/{F_SERVICE_HOST}.toml"
 F_SERVICE_GROUPS_DB_FILE = f"{SCRATCH_DIR}/groups_db"
 F_SERVICE_DB_FILE = f"{SCRATCH_DIR}/service_db"
 
