@@ -36,7 +36,7 @@ done
 
 
 # create user keys
-docker run --rm --volume ${USER_KEYS_FOLDER}:/tmp/users_keys \
+docker run --rm --user "$(id -u):0" --volume ${USER_KEYS_FOLDER}:/tmp/users_keys \
     $IMAGE \
     /scripts/generate_user_keys.sh \
     --keys-folder /tmp/users_keys \
