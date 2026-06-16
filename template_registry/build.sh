@@ -1,3 +1,5 @@
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 TEMPLATE_REGISTRY_IMAGE=""
 
 usage() {
@@ -23,4 +25,4 @@ done
 # Required arguments
 [ -n "$TEMPLATE_REGISTRY_IMAGE" ] || { echo "Missing required option: -i/--image" >&2; usage >&2; exit 1; }
 
-docker build -t $TEMPLATE_REGISTRY_IMAGE -f ./Dockerfile .
+docker build -t $TEMPLATE_REGISTRY_IMAGE -f $SCRIPT_DIR/Dockerfile $SCRIPT_DIR
