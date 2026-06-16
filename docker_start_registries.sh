@@ -1,4 +1,10 @@
 set -e
 INTERFACE="$(hostname -I | awk '{print $1}')"
-cd asset_registry && bash run_docker.sh -i mlcommons/pdo_toy_asset_registry:latest -n $INTERFACE -p 8001 &
-cd template_registry && bash run_docker.sh -i mlcommons/pdo_toy_template_registry:latest -n $INTERFACE -p 8002 &
+bash asset_registry/run_docker.sh \
+    --image mlcommons/pdo_toy_asset_registry:latest \
+    --interface $INTERFACE \
+    --port 8001 &
+bash template_registry/run_docker.sh \
+    --image mlcommons/pdo_toy_template_registry:latest \
+    --interface $INTERFACE \
+    --port 8002 &

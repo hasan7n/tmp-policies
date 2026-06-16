@@ -1,4 +1,6 @@
-bash pdo_client/webapp/cleanup.sh --scratch /tmp/pdo_scratch
+rm -rf /tmp/pdo_scratch
+mkdir -p /tmp/pdo_scratch
+
 INTERFACE="$(hostname -I | awk '{print $1}')"
 bash pdo_client/docker/run_webapp.sh \
     --image mlcommons/pdo_base_client:latest \
