@@ -18,5 +18,6 @@ bash policy_engine/run_services.sh \
     --image "mlcommons/pdo_services:latest" \
     --interface $INTERFACE \
     --ledger-url http://$INTERFACE:6600 \
-    --workspace /tmp/pdo_services &
+    --workspace /tmp/pdo_services \
+    --cert-path /tmp/pdo_ledger/ccf/keys/networkcert.pem &
 sleep 15
