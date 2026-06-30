@@ -243,6 +243,7 @@ class AssetDashboardView(BaseView):
             "registry_error": registry_error,
             "templates": [],
             "templates_error": None,
+            "policy_details": {},
             "credential_templates": [],
             "credential_templates_error": None,
         }
@@ -289,11 +290,25 @@ class AssetDashboardView(BaseView):
 
         if not ctx["has_policy"]:
             try:
-                ctx["templates"] = registry_client.list_policy_templates()
+                # only Rego-backed templates can be provisioned as subpolicies
+                ctx["templates"] = [
+                    t
+                    for t in registry_client.list_policy_templates()
+                    if (t.get("rego_source") or "").strip()
+                ]
                 for t in ctx["templates"]:
                     t["policy_data_schema_json"] = json.dumps(
                         t.get("policy_data_schema") or {}
                     )
+                # rego source + README per policy, for the "View" popup (keyed by id)
+                ctx["policy_details"] = {
+                    str(t["id"]): {
+                        "name": t.get("name", ""),
+                        "rego_source": t.get("rego_source", ""),
+                        "readme": t.get("readme", ""),
+                    }
+                    for t in ctx["templates"]
+                }
             except Exception as e:
                 logger.exception("Failed to fetch policy templates")
                 ctx["templates_error"] = str(e)
@@ -325,6 +340,32 @@ class AssetExposeView(BaseView):
                 dashboard_url, f"Invalid policy data JSON: {e}", "error"
             )
 
+        # The owner may select one or more policy templates; each becomes a Rego
+        # subpolicy provisioned into the rego_policy_agent via set_rego_policy.
+        policy_template_ids = request.POST.getlist("policy_templates")
+        if not policy_template_ids:
+            return redirect_with_msg(
+                dashboard_url, "Select at least one policy.", "error"
+            )
+
+        try:
+            rego_modules = []
+            for tid in policy_template_ids:
+                tpl = registry_client.get_policy_template(tid)
+                source = (tpl.get("rego_source") or "").strip()
+                if not source:
+                    return redirect_with_msg(
+                        dashboard_url,
+                        f"Policy '{tpl.get('name', tid)}' has no rego source.",
+                        "error",
+                    )
+                rego_modules.append([tpl["name"], source])
+        except Exception as e:
+            logger.exception("Failed to load selected policy templates")
+            return redirect_with_msg(
+                dashboard_url, f"Failed to load selected policies: {e}", "error"
+            )
+
         # Guardian info is on the registry record (set at asset registration).
         try:
             meta = (registry_client.get_asset_by_did(did) or {}).get(
@@ -346,7 +387,7 @@ class AssetExposeView(BaseView):
 
         try:
             result = pdo_runner.create_asset_policy(
-                f"Policy for {asset_name}", guardian, user_name
+                f"Policy for {asset_name}", guardian, user_name, rego_modules
             )
 
             if policy_data:

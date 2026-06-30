@@ -29,6 +29,8 @@ done
 [ -n "$PORT" ]      || { echo "Missing required option: -p/--port" >&2; usage >&2; exit 1; }
 
 python $SCRIPT_DIR/manage.py migrate
+# Seed the policy/credential templates from the duos/ and credentials/ folders.
+python $SCRIPT_DIR/manage.py seed_templates
 # Dev-only admin user for the Django admin dashboard at /admin/.
 DJANGO_SUPERUSER_USERNAME=admin DJANGO_SUPERUSER_PASSWORD=admin \
 DJANGO_SUPERUSER_EMAIL=admin@example.com \

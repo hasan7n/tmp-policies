@@ -174,15 +174,20 @@
         {% endif %}
 
         <div class="form-group">
-            <label for="id_policy_template">Policy Template</label>
-            <select id="id_policy_template" name="policy_template">
+            <label>Policies</label>
+            <div id="id_policy_templates" class="checkbox-list">
                 {% for t in templates %}
-                <option value="{{ t.id }}"
-                        data-schema="{{ t.policy_data_schema_json }}">{{ t.name }}</option>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="pol-{{ t.id }}" name="policy_templates"
+                           value="{{ t.id }}" data-schema="{{ t.policy_data_schema_json }}">
+                    <label for="pol-{{ t.id }}" style="flex:1;margin:0">{{ t.name }}</label>
+                    <button type="button" class="btn btn-sm"
+                            data-action="view-policy" data-policy-id="{{ t.id }}">View</button>
+                </div>
                 {% empty %}
-                <option value="">No templates available</option>
+                <p style="color:#999;margin:0">No policies available.</p>
                 {% endfor %}
-            </select>
+            </div>
         </div>
 
         <div class="form-group">
@@ -191,11 +196,27 @@
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Create Policy &amp; Expose</button>
+            <button type="submit" class="btn btn-primary"
+                    {% if not templates %}disabled{% endif %}>Create Policy &amp; Expose</button>
             <button type="button" class="btn"
                     data-modal-close="expose-modal">Cancel</button>
         </div>
     </form>
+</div>
+
+{{ policy_details|json_script:"policy-details-data" }}
+<div id="policy-detail-modal" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:760px">
+        <div class="modal-header">
+            <span class="modal-title" id="policy-detail-title">Policy</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="policy-detail-modal">&times;</button>
+        </div>
+        <h3 style="margin:0.5rem 0 0.25rem">README</h3>
+        <pre class="code-block" id="policy-detail-readme" style="white-space:pre-wrap"></pre>
+        <h3 style="margin:0.75rem 0 0.25rem">Rego source</h3>
+        <pre class="code-block" id="policy-detail-rego"></pre>
+    </div>
 </div>
 {% endif %}
 {% endblock %}

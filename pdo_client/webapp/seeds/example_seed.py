@@ -1,14 +1,14 @@
 """Example webapp seed.
 
-Runs a small end-to-end download-contract flow before the dev server starts,
-so the webapp comes up with wallets, credentials, and an exposed asset already
-in place. Three users take part:
+Runs a small end-to-end rego-policy flow before the dev server starts, so the
+webapp comes up with wallets, credentials, and an exposed asset already in
+place. Three users take part:
 
     vc_issuer   creates a wallet and a "poc" signing context, then issues three
-                verifiable credentials (consent / membership / public key).
+                verifiable credentials (public key / location / affiliation).
     data_user   creates a wallet and stores those three credentials.
-    data_owner  registers an asset ("data1") and exposes it behind a download
-                policy.
+    data_owner  registers an asset ("data1") and exposes it behind a
+                rego_policy_agent provisioned with the GS + IS subpolicies.
 
 It goes through the webapp's own helpers (`runner` = app.pdo_runner) and the
 asset/template registries (`registry_client`), so everything shows up in the
@@ -26,7 +26,8 @@ it is skipped at runtime.
 
 Each user name must match a key copied into PDO_HOME/keys by bootstrap (i.e. a
 key in the --keys-folder). Exposing the asset additionally needs the asset
-registry and a guardian running.
+registry, the template registry (for the GS/IS rego source), and a guardian
+running.
 """
 
 import time
@@ -50,6 +51,20 @@ SIGNING_CONTEXT = "poc"
 
 GUARDIAN_HOST = "192.168.1.223"
 GUARDIAN_PORT = "7900"
+
+# The subpolicies selected for the demo asset and the policy data they read
+# (GS -> allowedCountries, IS -> allowedInstitutions).
+SELECTED_POLICIES = ["GS", "IS"]
+ALLOWED_COUNTRY = "US"
+ALLOWED_INSTITUTION = "did:example:university"
+
+# Credential types the GS/IS subpolicies require; the data owner trusts the
+# vc_issuer's "poc" signing context for all of them.
+REQUIRED_CREDENTIAL_TYPES = [
+    "publicKeyCredential",
+    "LocationCredential",
+    "AffiliationCredential",
+]
 
 PUBLIC_KEY = (
     "-----BEGIN PUBLIC KEY-----\n"
@@ -116,12 +131,31 @@ print(f"[data_user] wallet: {user_wallet}")
 time.sleep(1)
 
 # -----------------------------------------------------------------
-# vc_issuer -> data_user: consent, membership, and public-key VCs
+# vc_issuer -> data_user: public-key, location, and affiliation VCs
 # -----------------------------------------------------------------
 signed_vcs = {
-    "consent": issue_vc(issuer_wallet, user_wallet, "consent", {"document": "did:1234"}),
-    "membership": issue_vc(issuer_wallet, user_wallet, "membership", {"member_of": "abc"}),
-    "public_key": issue_vc(issuer_wallet, user_wallet, "public_key", {"key": PUBLIC_KEY}),
+    "publicKeyCredential": issue_vc(
+        issuer_wallet, user_wallet, "publicKeyCredential", {"key": PUBLIC_KEY}
+    ),
+    "LocationCredential": issue_vc(
+        issuer_wallet,
+        user_wallet,
+        "LocationCredential",
+        {
+            "locatedAt": {
+                "street": "1 Main",
+                "zipCode": "00000",
+                "state": "MA",
+                "country": ALLOWED_COUNTRY,
+            }
+        },
+    ),
+    "AffiliationCredential": issue_vc(
+        issuer_wallet,
+        user_wallet,
+        "AffiliationCredential",
+        {"isMemberOf": ALLOWED_INSTITUTION, "typeOfMembership": "member"},
+    ),
 }
 for vc_type in signed_vcs:
     print(f"[vc_issuer] issued {vc_type} VC")
@@ -157,15 +191,34 @@ registry_client.update_asset_metadata(
 print(f"[data_owner] registered asset data1: {asset_did}")
 
 # -----------------------------------------------------------------
-# data_owner: expose the asset behind a download policy
+# data_owner: expose the asset behind a rego_policy_agent (GS + IS subpolicies)
 # -----------------------------------------------------------------
 guardian = f"http://{GUARDIAN_HOST}:{GUARDIAN_PORT}"
-policy = runner.create_asset_policy("Policy for data1", guardian, DATA_OWNER)
+
+# pull the selected subpolicies' rego source from the template registry
+templates = {t["name"]: t for t in registry_client.list_policy_templates()}
+rego_modules = [[name, templates[name]["rego_source"]] for name in SELECTED_POLICIES]
+
+policy = runner.create_asset_policy(
+    "Policy for data1", guardian, DATA_OWNER, rego_modules
+)
+
 policy_data = {
-    "allowed_institutions": ["abc", "mlcommons"],
-    "consent_document": "did:1234",
+    "allowedCountries": [ALLOWED_COUNTRY],
+    "allowedInstitutions": [ALLOWED_INSTITUTION],
 }
 runner.set_policy_data(policy["policy_contract_id"], policy_data, DATA_OWNER)
+
+# trust the vc_issuer's "poc" context for the credential types the policy needs,
+# so the contract's signature verification of the presented VCs succeeds.
+runner.register_policy_trusted_issuer(
+    policy["policy_contract_id"],
+    issuer_wallet,
+    DATA_OWNER,
+    path=[SIGNING_CONTEXT],
+    credential_types=REQUIRED_CREDENTIAL_TYPES,
+)
+
 registry_client.update_asset_metadata_by_did(
     asset_did,
     {

@@ -11,6 +11,8 @@ def _policy_to_dict(tpl):
         "id": tpl.pk,
         "name": tpl.name,
         "policy_data_schema": tpl.policy_data_schema,
+        "rego_source": tpl.rego_source,
+        "readme": tpl.readme,
     }
 
 
@@ -46,6 +48,8 @@ def policies_list_create(request):
         tpl = PolicyTemplate.objects.create(
             name=name,
             policy_data_schema=data.get("policy_data_schema", {}),
+            rego_source=data.get("rego_source", ""),
+            readme=data.get("readme", ""),
         )
         return JsonResponse(_policy_to_dict(tpl), status=201)
 

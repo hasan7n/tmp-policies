@@ -23,8 +23,8 @@ from django.conf import settings as cfg
 _ = cfg.PDO_HOME  # force settings to load (and set os.environ) before pdo.*
 
 import pdo.identity.decentralized.signature_authority as signature_authority
-import pdo.download.decentralized.policy_agent as policy_agent
-import pdo.download.decentralized.download_token as download_token
+import pdo.rego.decentralized.rego_policy_agent as rego_policy_agent
+import pdo.rego.decentralized.rego_token as rego_token
 
 from .pdo_state import get_state
 
@@ -152,30 +152,53 @@ def sign_credential(contract_id, signing_context_path, credential_dict, user_nam
 # ============================================================
 # Asset policy ops (owner-side)
 # ============================================================
-def create_asset_policy(description, guardian_url_port, user_name):
-    """Create a policy agent + download token, then register the policy as
-    a trusted issuer on the token.
+def create_asset_policy(description, guardian_url_port, user_name, rego_modules):
+    """Create a rego_policy_agent + rego_token, provision the chosen Rego
+    subpolicies, and register the policy as a trusted issuer on the token.
+
+    ``rego_modules`` is a list of ``[subpolicy_id, rego_source]`` pairs (the
+    policies the owner selected). ``cmd_set_rego_policy`` reads each module from
+    a file, so each source is materialized to a temp file first.
 
     Returns ``{'policy_contract_id', 'token_contract_id'}``.
     """
     state = get_state()
-    with _op_lock:
-        policy_id = policy_agent.create_policy_agent(
-            state, user_name, description=description
-        )
-        time.sleep(1)
-        token_id = download_token.create_download_token(
-            state, user_name, guardian_url_port
-        )
-        time.sleep(1)
-        download_token.register_trusted_issuer(
-            state,
-            token_id,
-            policy_id,
-            user_name,
-            credential_types=["DownloadCredential"],
-            path=["__ISSUER__"],
-        )
+
+    # materialize the selected subpolicies as files (cmd_set_rego_policy reads paths)
+    module_paths = []
+    module_args = []
+    for subpolicy_id, source in rego_modules:
+        path = _tmp_path(".rego")
+        with open(path, "w") as f:
+            f.write(source)
+        module_paths.append(path)
+        module_args.append([subpolicy_id, path])
+
+    try:
+        with _op_lock:
+            policy_id = rego_policy_agent.create_rego_policy_agent(
+                state, user_name, description=description
+            )
+            time.sleep(1)
+            rego_policy_agent.set_rego_policy(
+                state, policy_id, user_name, module=module_args
+            )
+            time.sleep(1)
+            token_id = rego_token.create_rego_token(
+                state, user_name, guardian_url_port
+            )
+            time.sleep(1)
+            rego_token.register_trusted_issuer(
+                state,
+                token_id,
+                policy_id,
+                user_name,
+                credential_types=["policy_decision"],
+                path=["__ISSUER__"],
+            )
+    finally:
+        for path in module_paths:
+            _safe_unlink(path)
     return {"policy_contract_id": policy_id, "token_contract_id": token_id}
 
 
@@ -185,7 +208,9 @@ def set_policy_data(policy_id, policy_data, user_name):
     data_path = _tmp_json(policy_data)
     try:
         with _op_lock:
-            policy_agent.set_policy_data(state, policy_id, user_name, data=data_path)
+            rego_policy_agent.set_policy_data(
+                state, policy_id, user_name, data=data_path
+            )
     finally:
         _safe_unlink(data_path)
 
@@ -194,7 +219,7 @@ def get_policy_data(policy_id, user_name):
     """Return the policy agent's current policy data as a dict."""
     state = get_state()
     with _op_lock:
-        raw = policy_agent.get_policy_data(state, policy_id, user_name)
+        raw = rego_policy_agent.get_policy_data(state, policy_id, user_name)
     if isinstance(raw, str):
         return json.loads(raw) if raw else {}
     return raw or {}
@@ -208,7 +233,7 @@ def register_policy_trusted_issuer(
     """
     state = get_state()
     with _op_lock:
-        policy_agent.register_trusted_issuer(
+        rego_policy_agent.register_trusted_issuer(
             state,
             policy_id,
             issuer_id,
@@ -222,21 +247,21 @@ def list_policy_trusted_issuers(policy_id, user_name):
     """Return the policy agent's registered trusted issuers as a dict."""
     state = get_state()
     with _op_lock:
-        raw = policy_agent.list_trusted_issuers(state, policy_id, user_name)
+        raw = rego_policy_agent.list_trusted_issuers(state, policy_id, user_name)
     if isinstance(raw, str):
         return json.loads(raw) if raw else {}
     return raw or {}
 
 
 def list_token_trusted_issuers(token_id, user_name):
-    """Return the download token's registered trusted issuers as a dict.
+    """Return the rego token's registered trusted issuers as a dict.
 
     The single entry is the policy agent registered at expose-time; its
     key is the policy agent's contract id.
     """
     state = get_state()
     with _op_lock:
-        raw = download_token.list_trusted_issuers(state, token_id, user_name)
+        raw = rego_token.list_trusted_issuers(state, token_id, user_name)
     if isinstance(raw, str):
         return json.loads(raw) if raw else {}
     return raw or {}
@@ -246,13 +271,14 @@ def list_token_trusted_issuers(token_id, user_name):
 # Asset use ops (consumer-side)
 # ============================================================
 def use_asset(*, wallet_id, token_id, guardian_url_port, user_name, output_dir=None):
-    """Run the consumer download flow.
+    """Run the consumer download flow against a rego_policy_agent.
 
     1. Read the token's trusted-issuer list to discover the policy agent.
-    2. Get credential requirements from the policy.
-    3. Build a VP from the wallet covering those types.
-    4. Issue a download credential from the policy.
-    5. Download the (encrypted) data through the guardian.
+    2. Get the per-role credential requirements from the policy.
+    3. Build a VP from the wallet covering the union of required types.
+    4. Wrap it as the role-keyed presentation the rego_policy_agent expects.
+    5. Issue a policy_decision credential from the policy.
+    6. Download the (encrypted) data through the guardian.
 
     Returns ``(output_path, issued_vc_dict)``.
     """
@@ -261,14 +287,13 @@ def use_asset(*, wallet_id, token_id, guardian_url_port, user_name, output_dir=N
     os.makedirs(output_dir, exist_ok=True)
 
     vp_path = _tmp_path(".json")
+    presentation_path = _tmp_path(".json")
     issued_path = _tmp_path(".json")
     output_path = os.path.join(output_dir, f"download_{os.urandom(4).hex()}.bin")
 
     try:
         with _op_lock:
-            issuers_raw = download_token.list_trusted_issuers(
-                state, token_id, user_name
-            )
+            issuers_raw = rego_token.list_trusted_issuers(state, token_id, user_name)
             time.sleep(1)
             issuers = (
                 json.loads(issuers_raw)
@@ -281,26 +306,42 @@ def use_asset(*, wallet_id, token_id, guardian_url_port, user_name, output_dir=N
                 )
             policy_id = next(iter(issuers.keys()))
 
-            creds_list = policy_agent.get_requirements(state, policy_id, user_name)
+            # rego_policy_agent.get_requirements returns { role: [credential_type, ...] }
+            requirements = rego_policy_agent.get_requirements(
+                state, policy_id, user_name
+            )
             time.sleep(1)
+            # build one VP from the wallet covering every required credential type
+            required_types = sorted(
+                {t for types in requirements.values() for t in types}
+            )
             signature_authority.get_vp(
                 state,
                 wallet_id,
                 user_name,
-                types=creds_list,
+                types=required_types,
                 output_file=vp_path,
             )
             time.sleep(1)
 
-            policy_agent.issue_policy_credential(
+            # the rego_policy_agent expects the presentation keyed by role:
+            # { role: <verifiable presentation> }. Our policies use a single
+            # "User" role, but key each required role to the VP for generality.
+            with open(vp_path) as f:
+                vp = json.load(f)
+            presentation = {role: vp for role in requirements} or {"User": vp}
+            with open(presentation_path, "w") as f:
+                json.dump(presentation, f)
+
+            rego_policy_agent.issue_policy_credential(
                 state,
                 policy_id,
                 user_name,
-                presentation=vp_path,
+                presentation=presentation_path,
                 issued_credential=issued_path,
             )
             time.sleep(1)
-            download_token.do_download(
+            rego_token.do_download(
                 state,
                 token_id,
                 user_name,
@@ -314,4 +355,5 @@ def use_asset(*, wallet_id, token_id, guardian_url_port, user_name, output_dir=N
         return output_path, issued_vc
     finally:
         _safe_unlink(vp_path)
+        _safe_unlink(presentation_path)
         _safe_unlink(issued_path)

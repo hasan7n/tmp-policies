@@ -12,21 +12,45 @@
         // URL-safe contract id (server-side encoding, see app/url_safe_id.py).
         var cidUrl = container.dataset.assetCidUrl;
 
-        // ---- Expose: prefill policy_data from selected template's schema ----
-        var templateSelect = document.getElementById('id_policy_template');
+        // ---- Expose: merge policy_data schema from the selected policies ----
+        // Multiple policies can be chosen; each becomes a Rego subpolicy. The
+        // policy_data textarea is prefilled with the union of the checked
+        // policies' data schemas (e.g. allowedCountries + allowedInstitutions).
+        var policyChecks = document.querySelectorAll('input[name="policy_templates"]');
         var policyDataTextarea = document.getElementById('id_policy_data');
-        if (templateSelect && policyDataTextarea) {
-            function prefill() {
-                var opt = templateSelect.options[templateSelect.selectedIndex];
-                if (!opt) return;
-                try {
-                    var schema = JSON.parse(opt.dataset.schema || '{}');
-                    policyDataTextarea.value = JSON.stringify(schema, null, 2);
-                } catch (e) { /* leave textarea untouched */ }
+        if (policyChecks.length && policyDataTextarea) {
+            function mergeSchemas() {
+                var merged = {};
+                policyChecks.forEach(function (cb) {
+                    if (!cb.checked) return;
+                    try {
+                        Object.assign(merged, JSON.parse(cb.dataset.schema || '{}'));
+                    } catch (e) { /* skip malformed schema */ }
+                });
+                policyDataTextarea.value = JSON.stringify(merged, null, 2);
             }
-            templateSelect.addEventListener('change', prefill);
-            prefill();
+            policyChecks.forEach(function (cb) {
+                cb.addEventListener('change', mergeSchemas);
+            });
+            mergeSchemas();
         }
+
+        // ---- Expose: "View" a policy's rego source + README in a popup ----
+        var detailsEl = document.getElementById('policy-details-data');
+        var policyDetails = detailsEl ? JSON.parse(detailsEl.textContent) : {};
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-action="view-policy"]');
+            if (!btn) return;
+            var d = policyDetails[btn.dataset.policyId];
+            if (!d) return;
+            document.getElementById('policy-detail-title').textContent =
+                (d.name || 'Policy') + ' policy';
+            document.getElementById('policy-detail-readme').textContent =
+                d.readme || '(no README)';
+            document.getElementById('policy-detail-rego').textContent =
+                d.rego_source || '(no rego source)';
+            document.getElementById('policy-detail-modal').classList.remove('hidden');
+        });
 
         // ---- Use: POST to /api/assets/use/, render result inline ----
         var useForm = document.getElementById('use-form');

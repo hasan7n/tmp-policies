@@ -11,7 +11,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the app (includes config/seed_data.json that migration 0002 reads).
+# Copy the app (includes duos/ and credentials/ that seed_templates reads).
 COPY . .
 
 # Non-root user + group 0 access so any host uid can read/write mounted
