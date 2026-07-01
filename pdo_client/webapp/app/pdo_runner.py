@@ -341,7 +341,7 @@ def use_asset(*, wallet_id, token_id, guardian_url_port, user_name, output_dir=N
                 issued_credential=issued_path,
             )
             time.sleep(1)
-            rego_token.do_download(
+            rego_token.do_operation(
                 state,
                 token_id,
                 user_name,

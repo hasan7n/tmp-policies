@@ -31,8 +31,8 @@ test_allow_when_member_of_approved_institution if {
 	subpolicy.result.decision == true with input as base_input
 }
 
-test_context_carries_op_and_channel_key if {
-	subpolicy.result.context == {"op": "get", "channel_key": "PUBKEY"} with input as base_input
+test_operation_carries_name_and_channel_key if {
+	subpolicy.result.operation == {"name": "do_download", "parameters": {"channel_key": "PUBKEY"}} with input as base_input
 }
 
 test_tasks_flag_affiliation_and_public_key if {

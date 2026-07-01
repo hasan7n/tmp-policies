@@ -52,7 +52,7 @@ and produces:
 {
   "decision": true,
   "verification_tasks": [ { "index": <int> } ],
-  "context": { "channel_key": "<requester public key>" }
+  "operation": { "name": "do_download", "parameters": { "channel_key": "<requester public key>" } }
 }
 ```
 
@@ -62,10 +62,12 @@ and produces:
   the exact VC's signature against the registered trusted issuer.
 - `decision` is a boolean. When several DUOs are selected the contract allows
   only if **every** module allowed, verifies the union of the flagged
-  credentials (a failed signature forces a deny), and merges the contexts.
-- `context` is merged across modules and becomes the claims of the issued
-  `policy_decision` credential; `channel_key` is what the `rego_token` forwards
-  to the guardian.
+  credentials (a failed signature forces a deny), and merges the operations.
+- `operation` is `{ "name": <operation>, "parameters": { ... } }`; it is merged
+  across modules and becomes the claims of the issued `policy_decision`
+  credential. The `rego_token` parses it to build the guardian capability: `name`
+  is the guardian operation to invoke (`do_download`) and `parameters` (the
+  `channel_key`) are forwarded to it.
 
 ## Tests
 

@@ -18,8 +18,8 @@ class DownloadOperation:
         "type": "object",
         "properties": {
             "channel_key": {"type": "string"},
-            "op": {"type": "string"},
         },
+        "required": ["channel_key"],
     }
 
     # -----------------------------------------------------------------
@@ -35,8 +35,6 @@ class DownloadOperation:
     # -----------------------------------------------------------------
     def __call__(self, params):
         if not ValidateJSON(params, self.__schema__):
-            return None
-        if params["op"] != "get":
             return None
         channel_key = params["channel_key"]
         enc_data = self.__encrypted_data(channel_key)

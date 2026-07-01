@@ -5,8 +5,8 @@
 # policy_data and handed to Rego as input.policy_data. The request must also carry
 # a publicKeyCredential whose claim is the requester's channel public key. Both
 # credentials must be issued to the SAME subject, so the requester proves the
-# affiliation and owns the channel key. That key is returned as the merged context
-# (alongside op "get") so the token can hand it to the guardian. Signature
+# affiliation and owns the channel key. That key is returned as the parameters of a
+# "do_download" operation so the token can build the guardian capability. Signature
 # verification of the credentials the decision relies on is delegated to the
 # rego_policy_agent contract via `verification_tasks` (referenced by index).
 #
@@ -70,9 +70,10 @@ flagged_creds := array.concat(
 
 verification_tasks := [{"index": c.index} | some c in flagged_creds]
 
-# ---- context --------------------------------------------------------------
-# Carry the requested operation and the channel key (the public key of the same
-# subject's publicKeyCredential). Defaults keep the result well-formed on deny.
+# ---- operation ------------------------------------------------------------
+# Name the "do_download" guardian operation and carry the channel key (the public
+# key of the same subject's publicKeyCredential) as its parameters. Defaults keep
+# the result well-formed on deny.
 channel_keys := [p.claims.key |
 	some p in public_key_creds
 	p.subject in qualified_subjects
@@ -82,10 +83,10 @@ default channel_key := ""
 
 channel_key := channel_keys[0] if count(channel_keys) > 0
 
-context := {"op": "get", "channel_key": channel_key}
+operation := {"name": "do_download", "parameters": {"channel_key": channel_key}}
 
 result := {
 	"decision": decision,
 	"verification_tasks": verification_tasks,
-	"context": context,
+	"operation": operation,
 }
