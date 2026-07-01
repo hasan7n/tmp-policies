@@ -37,8 +37,8 @@ COPY webapp/ /webapp/
 # host uid can read/write mounted volumes when launched with `--user $(id -u):0`.
 # New files written at runtime inherit gid 0 from the process's egid.
 RUN useradd -m -u 1000 pdo_user && \
-    chgrp -R 0 ${PDO_INSTALL_ROOT}/opt/pdo ${PDO_CONTRACTS_ROOT}/download-contract/test /scripts /webapp && \
-    chmod -R g=u ${PDO_INSTALL_ROOT}/opt/pdo ${PDO_CONTRACTS_ROOT}/download-contract/test /scripts /webapp
+    chgrp -R 0 ${PDO_INSTALL_ROOT}/opt/pdo ${PDO_CONTRACTS_ROOT}/rego-contract/test /scripts /webapp && \
+    chmod -R g=u ${PDO_INSTALL_ROOT}/opt/pdo ${PDO_CONTRACTS_ROOT}/rego-contract/test /scripts /webapp
 
 USER 1000:0
 

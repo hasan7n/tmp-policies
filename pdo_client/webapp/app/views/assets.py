@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def _guardian_url_port(host, port):
-    """Compose the canonical guardian URL the download token contract stores."""
+    """Compose the canonical guardian URL the rego token contract stores."""
     return f"http://{host}:{port}"
 
 
@@ -408,7 +408,7 @@ class AssetExposeView(BaseView):
             )
 
         return redirect_with_msg(
-            dashboard_url, "Asset exposed via download policy.", "success"
+            dashboard_url, "Asset exposed via rego policy.", "success"
         )
 
 

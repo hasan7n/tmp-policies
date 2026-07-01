@@ -71,7 +71,7 @@ as args:
 
 Pass `--seed PATH` to run a Python seed script after `bootstrap` and before the
 dev server starts — a way to bring the webapp up with PDO state already in
-place (run part of a flow, like the download-contract python tests). It runs
+place (run part of a flow, like the rego-contract python tests). It runs
 via `manage.py seed`, which executes the file with these globals injected (no
 imports needed): `state`, `bindings`, `runner` (`app.pdo_runner`), and
 `settings`. Django is initialized, so the app models are importable too. See

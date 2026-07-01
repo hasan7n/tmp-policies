@@ -1,7 +1,7 @@
 # pdo_client_v2
 
 Merges the old `docker_client` and `pdo_client` folders. Both ran the same
-flow (build/install the PDO client + contracts, then run the download-contract
+flow (build/install the PDO client + contracts, then run the rego-contract
 tests) — one in Docker, one on bare metal. This folder keeps **one** copy of
 each step in `scripts/` and has thin wrappers for each environment.
 
@@ -23,9 +23,9 @@ scripts/                     # the runners + their runtime helper (one folder)
                              # (export PDO_INSTALL_ROOT + PDO_CONTRACTS_ROOT first;
                              #  each runner checks them)
   prepare_site.sh            # copy ledger cert + site toml into PDO_HOME (args)
-  run_cli.sh                 # download-contract shell test
-  run_python.sh              # download-contract python test
-  run_legacy.sh              # download system test via `make test`
+  run_cli.sh                 # rego-contract shell test
+  run_python.sh              # rego-contract python test
+  run_legacy.sh              # rego system test via `make test`
   cleanup.sh                 # remove the install + build dirs
 
 docker/                      # containerized flow
@@ -68,7 +68,7 @@ docker/run_python.sh -i <image> -c <cert> -s <site.toml> -H <host> -l <ledger_ur
 sudo bash setup/install_system_deps.sh
 # point at your install + checkout, then build
 export PDO_INSTALL_ROOT=/path/to/pdo_install PDO_CONTRACTS_ROOT=/path/to/pdo-contracts
-setup/setup.sh -f "exchange-contract identity-contract download-contract"
+setup/setup.sh -f "exchange-contract identity-contract rego-contract"
 # run tests (start ledger + services, and guardian for the python test)
 scripts/run_cli.sh    -c <cert> -s <site.toml> -H <host> -l <ledger_url> -e <eservice_url>
 ../generate_user_keys.sh -k <keys_folder>   # python test prerequisite
@@ -78,7 +78,7 @@ scripts/run_legacy.sh -c <cert> -s <site.toml> -H <host>
 
 ## Reconciled differences from the old folders
 
-- **Python test path**: standardized on `download-contract/test/python/` (the
+- **Python test path**: standardized on `rego-contract/test/python/` (the
   real dir). The old `pdo_client/python_test.sh` used `.../python_test/`, which
   does not exist.
 - **Dropped** the `client_app/requirements.txt` pip install from the old

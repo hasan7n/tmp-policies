@@ -15,7 +15,7 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [options]
 
-Run the download-contract python test against a running ledger + services +
+Run the rego-contract python test against a running ledger + services +
 guardian. User keys must already exist in --keys-folder; generate them first
 with generate_user_keys.sh.
 
@@ -53,7 +53,7 @@ done
 
 source ${SCRIPT_DIR}/../setup/activate_env.sh
 
-PYTHON_TEST_DIR=${PDO_CONTRACTS_ROOT}/download-contract/test/python
+PYTHON_TEST_DIR=${PDO_CONTRACTS_ROOT}/rego-contract/test/python
 
 export LEDGER_CERT_PATH SITE_TOML_SOURCE F_SERVICE_HOST PDO_LEDGER_URL USER_KEYS_FOLDER GUARDIAN_URL
 python ${PYTHON_TEST_DIR}/startup.py

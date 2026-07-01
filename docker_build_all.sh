@@ -12,7 +12,7 @@ bash pdo_client/build.sh \
     --image mlcommons/pdo_base_client:latest \
     --repository https://github.com/hasan7n/pdo-contracts \
     --branch $BRANCH \
-    --families "exchange-contract identity-contract download-contract"
+    --families "exchange-contract identity-contract rego-contract"
 
 bash guardian/build.sh \
     --image mlcommons/toy_guardian:latest \

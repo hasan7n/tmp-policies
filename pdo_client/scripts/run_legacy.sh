@@ -12,7 +12,7 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [options]
 
-Run the legacy download system test via 'make test' on the local install.
+Run the legacy rego system test via 'make test' on the local install.
 
 Options:
   -c, --cert-path PATH     Ledger network cert (required)
@@ -44,4 +44,4 @@ bash ${SCRIPTS_DIR}/prepare_site.sh \
     --host "$F_SERVICE_HOST" \
     --pdo-home "$PDO_HOME"
 
-TEST_LIST=^system-download-script make -C ${PDO_CONTRACTS_ROOT} test
+TEST_LIST=^system-rego-script make -C ${PDO_CONTRACTS_ROOT} test

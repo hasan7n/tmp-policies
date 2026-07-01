@@ -1,7 +1,7 @@
 """Run a seed script before ``manage.py runserver``.
 
 A seed is a plain Python file that drives some part of a PDO flow (much like
-the download-contract python tests) so the webapp comes up with contracts and
+the rego-contract python tests) so the webapp comes up with contracts and
 wallets already in place. It is run *after* ``bootstrap`` (which copies files
 and populates the service registries) and *before* the dev server starts.
 

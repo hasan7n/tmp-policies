@@ -7,7 +7,7 @@ populated piggybacked on ``register_contract``. We call its read endpoint
 
 The ``contract_family`` value on the ledger is the *contract class name* used
 at registration time, e.g. ``"signature_authority"``, ``"policy_agent"``,
-``"download_token"`` — that's what ``pcontract.register_contract`` passes
+``"token_object"`` — that's what ``pcontract.register_contract`` passes
 through. Filtering on it is how we tell wallets from policy/token contracts.
 """
 
@@ -30,10 +30,11 @@ _op_lock = threading.Lock()
 
 # Contract-class strings as registered on the ledger (see
 # pdo-contracts/private-data-objects/client/pdo/client/commands/contract.py:269,
-# which passes ``contract_class`` as the family).
+# which passes ``contract_class`` as the family). The rego_policy_agent reuses
+# the policy_agent create command, and rego_token is minted as a token_object,
+# so those are the classes they register under.
 FAMILY_SIGNATURE_AUTHORITY = "signature_authority"
 FAMILY_POLICY_AGENT = "policy_agent"
-FAMILY_DOWNLOAD_TOKEN = "download_token"
 
 
 def _load_user_keys(user_name):

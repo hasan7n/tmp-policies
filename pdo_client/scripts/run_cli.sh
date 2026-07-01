@@ -14,7 +14,7 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [options]
 
-Run the download-contract CLI test against a running ledger + services.
+Run the rego-contract CLI test against a running ledger + services.
 
 Options:
   -c, --cert-path PATH     Ledger network cert (required)
@@ -51,7 +51,7 @@ bash ${SCRIPTS_DIR}/prepare_site.sh \
     --host "$F_SERVICE_HOST" \
     --pdo-home "$PDO_HOME"
 
-bash ${PDO_CONTRACTS_ROOT}/download-contract/test/script_test.sh \
+bash ${PDO_CONTRACTS_ROOT}/rego-contract/test/script_test.sh \
     "--loglevel" "warn" \
     "--logfile" "__screen__" \
     "--ledger" "$PDO_LEDGER_URL" \
