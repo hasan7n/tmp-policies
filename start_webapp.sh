@@ -1,7 +1,7 @@
 # run policy client webapp (bare metal)
 bash pdo_client/webapp/cleanup.sh --scratch /tmp/pdo_scratch
 export PDO_INSTALL_ROOT=/home/hasan/work/pdos/pdo_install
-export PDO_CONTRACTS_ROOT=/home/hasan/work/pdos/pdo_contracts
+export PDO_CONTRACTS_ROOT=/home/hasan/work/pdos/pdo-contracts
 bash pdo_client/webapp/run.sh \
     --interface $MY_HOST \
     --port 8000 \
