@@ -1,6 +1,6 @@
 set -e
 
-BRANCH=a3d3c04cfcf2330268145c73732df88a1d439183
+BRANCH=833f7cb0088e5906bd26e2704c2881ace1033e6b
 
 bash asset_registry/build.sh \
     --image mlcommons/pdo_toy_asset_registry:latest

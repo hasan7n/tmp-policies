@@ -19,7 +19,7 @@
 # Identity is a string used to identify the service in log files
 Identity = "${identity}"
 HttpPort = 7900
-Host = "0.0.0.0"
+Host = "${interface}"
 Operations = 'guardian_operation'
 
 # --------------------------------------------------
@@ -31,7 +31,7 @@ KeyValueStore = "${data}/guardian_service.mdb"
 BlockStore = "${data}/guardian_service.mdb"
 Identity = "${identity}"
 HttpPort = 7901
-Host = "0.0.0.0"
+Host = "${interface}"
 GarbageCollectionInterval = 0
 MaxDuration = 0
 

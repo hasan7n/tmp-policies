@@ -39,7 +39,7 @@ done
 [ -n "$SSERVICE_PORT" ]  || { echo "Missing required option: -s/--sservice-port" >&2; usage >&2; exit 1; }
 [ -n "$GUARDIAN_HOST" ]   || { echo "Missing required option: -g/--guardian-host" >&2; usage >&2; exit 1; }
 
-docker run --rm --env F_GUARDIAN_HOST=$GUARDIAN_HOST --user "$(id -u):0" \
+docker run --rm --env F_GUARDIAN_HOST=$GUARDIAN_HOST --env INTERFACE=0.0.0.0 --user "$(id -u):0" \
     -p $INTERFACE:$PORT:7900 -p $INTERFACE:$SSERVICE_PORT:7901 --name pdo-guardian $GUARDIAN_IMAGE
 
 # docker run --rm --env F_GUARDIAN_HOST=localhost --user "$(id -u):0" \

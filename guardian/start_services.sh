@@ -1,4 +1,5 @@
 #!/bin/bash
+: "${INTERFACE?Missing environment variable INTERFACE}"
 : "${F_GUARDIAN_HOST?Missing environment variable F_GUARDIAN_HOST}"
 : "${PDO_INSTALL_ROOT?Missing environment variable PDO_INSTALL_ROOT}"
 : "${PDO_CONTRACTS_ROOT?Missing environment variable PDO_CONTRACTS_ROOT}"
@@ -26,7 +27,8 @@ try ${PDO_HOME}/contracts/contracts/scripts/ss_start.sh -c -o ${PDO_HOME}/logs -
     --config guardian_service.toml \
     --config-dir $SCRIPT_DIR \
     --identity guardian_sservice \
-    --bind host ${F_GUARDIAN_HOST}
+    --bind host ${F_GUARDIAN_HOST} \
+    --bind interface ${INTERFACE}
 
 sleep 3
 
@@ -36,6 +38,7 @@ try ${PDO_HOME}/contracts/contracts/scripts/gs_start.sh -c -o ${PDO_HOME}/logs -
     --config guardian_service.toml \
     --config-dir $SCRIPT_DIR \
     --identity guardian_service \
-    --bind host ${F_GUARDIAN_HOST}
+    --bind host ${F_GUARDIAN_HOST} \
+    --bind interface ${INTERFACE}
 
 tail -f /dev/null
