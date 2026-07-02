@@ -434,10 +434,14 @@ class AssetExposeView(BaseView):
 # JSON endpoints
 # ============================================================
 class AssetDeployGuardianEndpoint(JsonView):
-    """POST — deploy a guardian container for this asset and record its
-    host/port on the asset registry record. The guardian serves the file at the
-    asset's recorded data path. Exposing the asset is only possible once this
-    has run.
+    """POST — record the guardian host/port on the asset and return a
+    ready-to-run ``guardian/run.sh`` command the owner runs to start the
+    guardian.
+
+    The webapp does not launch the guardian itself (so this works even when the
+    webapp runs inside a container with no Docker access); the guardian serves
+    the file at the asset's recorded data path. Exposing the asset is only
+    possible once this has run.
     """
 
     def handle(self, request, data, cid_url):
@@ -459,15 +463,18 @@ class AssetDeployGuardianEndpoint(JsonView):
         if not data_path:
             raise ValidationError("Asset has no data path recorded.")
 
-        guardian_url, guardian_port = guardian_launcher.deploy_guardian(data_path)
+        command, guardian_url, guardian_port = guardian_launcher.guardian_run_command(
+            data_path
+        )
 
         registry_client.update_asset_metadata_by_did(
             did, {"guardian_url": guardian_url, "guardian_port": guardian_port}
         )
         return {
             "ok": True,
+            "command": command,
             "message": (
-                "Guardian deployed on "
+                "Run the command shown to start the guardian on "
                 + _guardian_url_port(guardian_url, guardian_port)
             ),
         }

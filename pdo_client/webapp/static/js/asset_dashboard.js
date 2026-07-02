@@ -53,6 +53,8 @@
         });
 
         // ---- Deploy a guardian for this asset ----
+        // The backend records the guardian host/port and returns a docker
+        // command; the owner runs it themselves (the webapp does not launch it).
         var deployBtn = document.getElementById('deploy-guardian-btn');
         if (deployBtn) {
             deployBtn.addEventListener('click', async function () {
@@ -61,12 +63,34 @@
                     var res = await window.api.post(
                         '/api/assets/' + cidUrl + '/deploy-guardian/', {}
                     );
-                    window.flash(res.message || 'Guardian deployed.', 'success');
-                    window.location.reload();
+                    document.getElementById('guardian-command-output').textContent =
+                        res.command || '';
+                    document.getElementById('guardian-command-modal')
+                        .classList.remove('hidden');
                 } catch (err) {
                     deployBtn.disabled = false;
                     window.flash(err.message, 'error');
                 }
+            });
+
+            var copyBtn = document.getElementById('guardian-command-copy');
+            if (copyBtn) {
+                copyBtn.addEventListener('click', function () {
+                    var text = document.getElementById(
+                        'guardian-command-output').textContent;
+                    navigator.clipboard.writeText(text).then(function () {
+                        window.flash('Command copied.', 'success');
+                    }, function () { /* clipboard may be unavailable */ });
+                });
+            }
+
+            // The asset is marked deployed server-side, so reload on dismiss to
+            // reflect the new "behind a guardian" state.
+            ['guardian-command-done', 'guardian-command-close'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) el.addEventListener('click', function () {
+                    window.location.reload();
+                });
             });
         }
 

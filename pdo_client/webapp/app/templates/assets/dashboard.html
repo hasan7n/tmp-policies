@@ -46,6 +46,27 @@
         {% endif %}
     </div>
 
+    {% if not guardian_deployed %}
+    <div id="guardian-command-modal" class="modal-backdrop hidden">
+        <div class="modal" style="max-width:820px">
+            <div class="modal-header">
+                <span class="modal-title">Start the guardian</span>
+                <button type="button" class="modal-close" id="guardian-command-close"
+                        data-modal-close="guardian-command-modal">&times;</button>
+            </div>
+            <p>Run this command on the guardian host to start the guardian for
+                this asset:</p>
+            <pre class="code-block" id="guardian-command-output"
+                 style="white-space:pre-wrap"></pre>
+            <div class="form-actions">
+                <button type="button" class="btn" id="guardian-command-copy">Copy</button>
+                <button type="button" class="btn btn-primary"
+                        id="guardian-command-done">Done</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="card" id="use-result-card" style="display:none; margin-bottom:1rem">
         <h2>Decrypted Data</h2>
         <pre class="code-block" id="use-result-output"></pre>

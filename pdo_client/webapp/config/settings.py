@@ -65,10 +65,12 @@ F_SERVICE_DB_FILE = f"{SCRATCH_DIR}/service_db"
 # user's keys live under CHANNEL_KEYS_DIR/<user_name>/.
 CHANNEL_KEYS_DIR = os.path.join(SCRATCH_DIR, "channel_keys")
 
-# Guardian deployment: the owner "deploy behind a guardian" action shells out to
-# guardian/run.sh. It defaults to the sibling guardian directory in the repo but
-# can be overridden via the environment. The guardian is published on
-# GUARDIAN_PORT at F_SERVICE_HOST (the service host the webapp is configured with).
+# Guardian deployment: the owner "deploy behind a guardian" action builds a
+# guardian/run.sh command (for the owner to run) that starts the guardian
+# published on GUARDIAN_PORT at F_SERVICE_HOST (the service host the webapp is
+# configured with). GUARDIAN_DIR locates run.sh; it defaults to the sibling
+# guardian directory in the repo but can be overridden via the environment (e.g.
+# to a host path when the webapp itself runs in a container).
 GUARDIAN_DIR = os.environ.get("GUARDIAN_DIR", str(BASE_DIR.parent.parent / "guardian"))
 GUARDIAN_IMAGE = os.environ.get("GUARDIAN_IMAGE", "mlcommons/toy_guardian:latest")
 GUARDIAN_PORT = os.environ.get("GUARDIAN_PORT", "7900")

@@ -1,59 +1,39 @@
-"""Launch a guardian container for an asset.
+"""Build the command that starts a guardian container for an asset.
 
-The owner's "deploy behind a guardian" action shells out to guardian/run.sh,
-which starts the guardian via ``docker run``. run.sh blocks for the lifetime of
-the container, so it is launched as a detached background process; the asset
-card is updated with the guardian's host/port immediately (see
-``views.assets.AssetDeployGuardianEndpoint``).
+The webapp may itself run inside a container with no access to the Docker
+daemon, so rather than launching the guardian it hands the owner a ready-to-run
+``guardian/run.sh`` command to run on the guardian host (see
+``views.assets.AssetDeployGuardianEndpoint``). run.sh owns the actual
+``docker run`` invocation, so it is not duplicated here.
 """
 
-import logging
 import os
-import subprocess
 
 from django.conf import settings
 
-logger = logging.getLogger(__name__)
 
+def guardian_run_command(data_path):
+    """Return ``(command, guardian_host, guardian_port)``.
 
-def deploy_guardian(data_path):
-    """Start a guardian container serving ``data_path`` (a host file).
-
-    The guardian is published on ``GUARDIAN_PORT`` at ``F_SERVICE_HOST`` (the
-    service host the webapp is configured with) and bound on all interfaces.
-    Returns ``(guardian_url, guardian_port)`` — the host/port to record on the
-    asset — after spawning run.sh; it does not wait for the container to be
-    ready.
+    ``command`` is a ``guardian/run.sh`` invocation that starts the guardian
+    serving ``data_path``, published on ``GUARDIAN_PORT`` at ``F_SERVICE_HOST``
+    (the service host the webapp is configured with) and bound on all
+    interfaces.
     """
-    run_script = os.path.join(settings.GUARDIAN_DIR, "run.sh")
-    if not os.path.isfile(run_script):
-        raise FileNotFoundError(f"guardian run script not found: {run_script}")
-
     guardian_host = settings.F_SERVICE_HOST
     port = str(settings.GUARDIAN_PORT)
+    sservice_port = str(settings.GUARDIAN_SSERVICE_PORT)
+    run_script = os.path.join(settings.GUARDIAN_DIR, "run.sh")
 
-    cmd = [
-        "bash",
-        run_script,
-        "--image", settings.GUARDIAN_IMAGE,
-        "--interface", "0.0.0.0",
-        "--port", port,
-        "--sservice-port", str(settings.GUARDIAN_SSERVICE_PORT),
-        "--guardian-host", guardian_host,
-        "--data-path", data_path,
-    ]
-
-    log_path = os.path.join(settings.SCRATCH_DIR, "guardian_run.log")
-    logger.info("Launching guardian: %s (log: %s)", " ".join(cmd), log_path)
-    log_file = open(log_path, "ab")
-    # Detach into its own session so the container outlives the request; run.sh
-    # blocks for the container lifetime, so we deliberately do not wait on it.
-    subprocess.Popen(
-        cmd,
-        cwd=settings.GUARDIAN_DIR,
-        stdout=log_file,
-        stderr=subprocess.STDOUT,
-        stdin=subprocess.DEVNULL,
-        start_new_session=True,
+    command = " \\\n".join(
+        [
+            f"bash {run_script}",
+            f"    --image {settings.GUARDIAN_IMAGE}",
+            "    --interface 0.0.0.0",
+            f"    --port {port}",
+            f"    --sservice-port {sservice_port}",
+            f"    --guardian-host {guardian_host}",
+            f"    --data-path {data_path}",
+        ]
     )
-    return guardian_host, port
+    return command, guardian_host, port
