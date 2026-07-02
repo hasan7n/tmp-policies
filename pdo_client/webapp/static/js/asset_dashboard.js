@@ -52,6 +52,24 @@
             document.getElementById('policy-detail-modal').classList.remove('hidden');
         });
 
+        // ---- Deploy a guardian for this asset ----
+        var deployBtn = document.getElementById('deploy-guardian-btn');
+        if (deployBtn) {
+            deployBtn.addEventListener('click', async function () {
+                deployBtn.disabled = true;
+                try {
+                    var res = await window.api.post(
+                        '/api/assets/' + cidUrl + '/deploy-guardian/', {}
+                    );
+                    window.flash(res.message || 'Guardian deployed.', 'success');
+                    window.location.reload();
+                } catch (err) {
+                    deployBtn.disabled = false;
+                    window.flash(err.message, 'error');
+                }
+            });
+        }
+
         // ---- Use: POST to /api/assets/use/, render result inline ----
         var useForm = document.getElementById('use-form');
         if (useForm) {
@@ -63,12 +81,10 @@
                     document.getElementById('use-modal').classList.add('hidden');
                     var card = document.getElementById('use-result-card');
                     var out = document.getElementById('use-result-output');
-                    out.textContent = JSON.stringify(
-                        { output_file: res.output_file, issued_vc: res.issued_vc },
-                        null, 2);
+                    out.textContent = res.data;
                     card.style.display = '';
                     card.scrollIntoView({ behavior: 'smooth' });
-                    window.flash('Downloaded to ' + res.output_file, 'success');
+                    window.flash('Data downloaded and decrypted.', 'success');
                 } catch (err) {
                     window.flash(err.message, 'error');
                 }

@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views.assets import (
     AssetDashboardView,
+    AssetDeployGuardianEndpoint,
     AssetExposeView,
     AssetRegisterPolicyIssuerEndpoint,
     AssetSetupView,
@@ -9,6 +10,7 @@ from .views.assets import (
     AssetUpdatePolicyDataEndpoint,
     AssetUseEndpoint,
 )
+from .views.channel_keys import ChannelKeyGenerateEndpoint
 from .views.config import ConfigPageView, IdentitySetView
 from .views.wallets import (
     WalletAddVCEndpoint,
@@ -53,8 +55,19 @@ urlpatterns = [
     # Config + identity (pages)
     path("config/", ConfigPageView.as_view(), name="config"),
     path("identity/set/", IdentitySetView.as_view(), name="identity_set"),
+    # Channel key
+    path(
+        "api/channel-key/generate/",
+        ChannelKeyGenerateEndpoint.as_view(),
+        name="api_channel_key_generate",
+    ),
     # JSON endpoints
     path("api/assets/use/", AssetUseEndpoint.as_view(), name="api_asset_use"),
+    path(
+        "api/assets/<str:cid_url>/deploy-guardian/",
+        AssetDeployGuardianEndpoint.as_view(),
+        name="api_asset_deploy_guardian",
+    ),
     path(
         "api/assets/<str:cid_url>/register-policy-issuer/",
         AssetRegisterPolicyIssuerEndpoint.as_view(),

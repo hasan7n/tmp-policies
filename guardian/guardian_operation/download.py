@@ -7,6 +7,7 @@ from pdo.contracts.guardian.common.utility import ValidateJSON
 from .utils import AsymmetricEncryption
 import logging
 import base64
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +25,12 @@ class DownloadOperation:
 
     # -----------------------------------------------------------------
     def __init__(self, config):
-        # Model Parameters to be used during inference
-        self.data = "secret_data"
+        data_path = os.environ.get("GUARDIAN_DATA_PATH")
+        if data_path:
+            with open(data_path) as f:
+                self.data = f.read()
+        else:
+            raise RuntimeError("GUARDIAN_DATA_PATH not set")
 
     def __encrypted_data(self, channel_key):
         # Encrypt the data using the provided channel key

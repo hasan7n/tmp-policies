@@ -33,7 +33,7 @@ running.
 import time
 from typing import TYPE_CHECKING
 
-from app import registry_client
+from app import channel_keys, registry_client
 from app.did_utils import make_did
 from app.models import AppConfig
 
@@ -65,19 +65,6 @@ REQUIRED_CREDENTIAL_TYPES = [
     "LocationCredential",
     "AffiliationCredential",
 ]
-
-PUBLIC_KEY = (
-    "-----BEGIN PUBLIC KEY-----\n"
-    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAm/3dUBiOnAyZyJ7ZfZOQ\n"
-    "L965qtOthxA+AmRQVNE1Qr9Y39zjT8U7FKG9UAbWLsZbIUct6qHDPfr6tbeSFPKc\n"
-    "Bj0u5bCoI3tdvcN7fr1acJnZsrR1Yk5xkV6UKANJbC3kUAIHDg8kDM8R9mlsxBmu\n"
-    "qpeF1ySuF1Awfw0FH/7hNi2ZyHVlxku3Z4CG3xEtHj8pNb+PT7jFTjfBtvwRLOz+\n"
-    "B7OJUPpkyG9Hrc1Ulc9y+qZXOSwG+IJqsS4574U6VPdfpzrjBNLdtiUulUSx+M2I\n"
-    "vwA3YYPAq+BVcOXCJ5/51v0lu5kb2soA6ZJ8IRU+WQwzFkT5PN43fGu69B5S+vcR\n"
-    "5wIDAQAB\n"
-    "-----END PUBLIC KEY-----\n"
-)
-
 
 def login(user_name):
     """Configure the webapp identity so the UI lists this user's contracts."""
@@ -130,12 +117,22 @@ user_wallet = runner.create_wallet("user wallet", DATA_USER)
 print(f"[data_user] wallet: {user_wallet}")
 time.sleep(1)
 
+# data_user generates a channel key. Its public key is embedded in the
+# public-key credential below, so the guardian encrypts downloaded data to it
+# and data_user can decrypt with the matching private key (kept under the
+# scratch channel_keys dir). This mirrors clicking "Generate a channel_key".
+user_channel_public_key = channel_keys.generate(DATA_USER)
+print("[data_user] generated channel key")
+
 # -----------------------------------------------------------------
 # vc_issuer -> data_user: public-key, location, and affiliation VCs
 # -----------------------------------------------------------------
 signed_vcs = {
     "publicKeyCredential": issue_vc(
-        issuer_wallet, user_wallet, "publicKeyCredential", {"key": PUBLIC_KEY}
+        issuer_wallet,
+        user_wallet,
+        "publicKeyCredential",
+        {"key": user_channel_public_key},
     ),
     "LocationCredential": issue_vc(
         issuer_wallet,

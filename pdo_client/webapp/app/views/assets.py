@@ -5,7 +5,13 @@ from django.conf import settings
 from django.http import Http404
 from django.shortcuts import redirect, render
 
-from .. import ledger_client, pdo_runner, registry_client
+from .. import (
+    channel_keys,
+    guardian_launcher,
+    ledger_client,
+    pdo_runner,
+    registry_client,
+)
 from ..did_utils import make_did, parse_did
 from ..models import AppConfig
 from ..url_safe_id import decode_cid, encode_cid
@@ -47,9 +53,9 @@ def _flatten_policy_issuers(raw_issuers):
     rows = []
     for contract_id, entries in (raw_issuers or {}).items():
         for entry in entries or []:
-            prefix_path = (
-                (entry.get("verifying_context") or {}).get("prefix_path") or []
-            )
+            prefix_path = (entry.get("verifying_context") or {}).get(
+                "prefix_path"
+            ) or []
             rows.append(
                 {
                     "did": make_did(contract_id, prefix_path),
@@ -116,6 +122,8 @@ class AssetsListView(BaseView):
                 a["contract_id"] = cid
                 a["cid_url"] = encode_cid(cid)
                 a["is_local"] = cid in owned_ids
+                # An asset can only be "used" once it is behind a guardian.
+                a["has_guardian"] = bool((a.get("metadata") or {}).get("guardian_url"))
         except Exception as e:
             logger.exception("Failed to fetch assets")
             list_error = str(e)
@@ -146,10 +154,8 @@ class AssetSetupView(BaseView):
     def post(self, request):
         name = (request.POST.get("name") or "").strip()
         data_source = (request.POST.get("data_source") or "").strip()
-        guardian_url = (request.POST.get("guardian_url") or "").strip()
-        guardian_port = (request.POST.get("guardian_port") or "").strip()
 
-        if not all([name, data_source, guardian_url, guardian_port]):
+        if not all([name, data_source]):
             return render(
                 request,
                 "assets/setup.html",
@@ -166,12 +172,13 @@ class AssetSetupView(BaseView):
             contract_id = pdo_runner.create_wallet(name, user_name)
             did = make_did(contract_id)
 
+            # Guardian URL/port are unknown until the owner deploys a guardian
+            # for this asset (see AssetDeployGuardianEndpoint); only the data
+            # path is recorded here.
             registry_asset = registry_client.register_asset(
                 name=name,
                 did=did,
                 metadata={
-                    "guardian_url": guardian_url,
-                    "guardian_port": guardian_port,
                     "data_source": data_source,
                 },
             )
@@ -224,6 +231,9 @@ class AssetDashboardView(BaseView):
             registry_error = None
 
         metadata = asset.get("metadata", {}) or {}
+        guardian_url = metadata.get("guardian_url", "")
+        guardian_port = metadata.get("guardian_port", "")
+        guardian_deployed = bool(guardian_url and guardian_port)
         ctx = {
             "asset": {
                 "contract_id": contract_id,
@@ -232,6 +242,14 @@ class AssetDashboardView(BaseView):
                 "name": asset.get("name") or f"Asset {_short_id(contract_id)}",
             },
             "wallets": _user_wallet_cards(user_name),
+            "guardian_deployed": guardian_deployed,
+            "guardian_url": guardian_url,
+            "guardian_port": guardian_port,
+            "guardian_endpoint": (
+                _guardian_url_port(guardian_url, guardian_port)
+                if guardian_deployed
+                else ""
+            ),
             "has_policy": False,
             "policy_contract_id": None,
             "token_contract_id": None,
@@ -415,9 +433,50 @@ class AssetExposeView(BaseView):
 # ============================================================
 # JSON endpoints
 # ============================================================
+class AssetDeployGuardianEndpoint(JsonView):
+    """POST — deploy a guardian container for this asset and record its
+    host/port on the asset registry record. The guardian serves the file at the
+    asset's recorded data path. Exposing the asset is only possible once this
+    has run.
+    """
+
+    def handle(self, request, data, cid_url):
+        contract_id = decode_cid(cid_url)
+        user_name = AppConfig.get_instance().public_key
+        _require_user_asset(user_name, contract_id)
+        did = make_did(contract_id)
+
+        try:
+            asset = registry_client.get_asset_by_did(did) or {}
+        except Exception as e:
+            raise ValidationError(f"failed to look up asset in registry: {e}")
+        meta = asset.get("metadata", {}) or {}
+
+        if meta.get("guardian_url") and meta.get("guardian_port"):
+            raise ValidationError("A guardian is already deployed for this asset.")
+
+        data_path = (meta.get("data_source") or "").strip()
+        if not data_path:
+            raise ValidationError("Asset has no data path recorded.")
+
+        guardian_url, guardian_port = guardian_launcher.deploy_guardian(data_path)
+
+        registry_client.update_asset_metadata_by_did(
+            did, {"guardian_url": guardian_url, "guardian_port": guardian_port}
+        )
+        return {
+            "ok": True,
+            "message": (
+                "Guardian deployed on "
+                + _guardian_url_port(guardian_url, guardian_port)
+            ),
+        }
+
+
 class AssetUseEndpoint(JsonView):
-    """POST {asset_did, wallet_id} — run the consumer download flow and
-    return ``{output_file, issued_vc}``."""
+    """POST {asset_did, wallet_id} — run the consumer download flow, decrypt the
+    downloaded data with the user's private channel key, and return ``{data}``.
+    """
 
     def handle(self, request, data, **kwargs):
         asset_did = require(data, "asset_did")
@@ -442,13 +501,14 @@ class AssetUseEndpoint(JsonView):
             metadata.get("guardian_port", ""),
         )
 
-        output_path, issued_vc = pdo_runner.use_asset(
+        output_path, _ = pdo_runner.use_asset(
             wallet_id=wallet_id,
             token_id=token_contract_id,
             guardian_url_port=guardian,
             user_name=user_name,
         )
-        return {"ok": True, "output_file": output_path, "issued_vc": issued_vc}
+        decrypted = channel_keys.decrypt_download(user_name, output_path)
+        return {"ok": True, "data": decrypted}
 
 
 class AssetRegisterPolicyIssuerEndpoint(JsonView):

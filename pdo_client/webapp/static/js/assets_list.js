@@ -23,12 +23,10 @@
                 document.getElementById('use-modal').classList.add('hidden');
                 var card = document.getElementById('use-result-card');
                 var out = document.getElementById('use-result-output');
-                out.textContent = JSON.stringify(
-                    { output_file: res.output_file, issued_vc: res.issued_vc },
-                    null, 2);
+                out.textContent = res.data;
                 card.style.display = '';
                 card.scrollIntoView({ behavior: 'smooth' });
-                window.flash('Downloaded to ' + res.output_file, 'success');
+                window.flash('Data downloaded and decrypted.', 'success');
             } catch (err) {
                 window.flash(err.message, 'error');
             }

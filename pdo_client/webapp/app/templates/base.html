@@ -29,9 +29,30 @@
         <button type="button" class="nav-identity-btn"
                 data-modal-open="change-identity-modal">Set Identity</button>
         {% endif %}
+        {% if current_identity %}
+        {% if has_channel_key %}
+        <button type="button" class="nav-identity-btn"
+                data-modal-open="channel-key-modal">View your channel key</button>
+        {% else %}
+        <button type="button" class="nav-identity-btn"
+                id="generate-channel-key-btn">Generate a channel_key</button>
+        {% endif %}
+        {% endif %}
         <a href="/config/" class="nav-settings-link" title="Settings">&#9881;</a>
     </div>
 </nav>
+
+<!-- View Channel Key Modal: shows only the public channel key. -->
+<div id="channel-key-modal" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:640px">
+        <div class="modal-header">
+            <span class="modal-title">Your Channel Key</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="channel-key-modal">&times;</button>
+        </div>
+        <pre class="code-block" style="white-space:pre-wrap">{{ channel_public_key }}</pre>
+    </div>
+</div>
 
 <!-- Change Identity Modal: posts as a regular HTML form -->
 <div id="change-identity-modal" class="modal-backdrop hidden">
@@ -60,6 +81,7 @@
 <script src="/static/js/client.js"></script>
 <script src="/static/js/modals.js"></script>
 <script src="/static/js/flash.js"></script>
+<script src="/static/js/channel_key.js"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

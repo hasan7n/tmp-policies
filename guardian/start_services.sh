@@ -3,6 +3,7 @@
 : "${F_GUARDIAN_HOST?Missing environment variable F_GUARDIAN_HOST}"
 : "${PDO_INSTALL_ROOT?Missing environment variable PDO_INSTALL_ROOT}"
 : "${PDO_CONTRACTS_ROOT?Missing environment variable PDO_CONTRACTS_ROOT}"
+: "${GUARDIAN_DATA_PATH?Missing environment variable GUARDIAN_DATA_PATH}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

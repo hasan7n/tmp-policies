@@ -61,6 +61,19 @@ DOWNLOAD_OUTPUT_DIR = os.path.join(SCRATCH_DIR, "downloads")
 F_SERVICE_GROUPS_DB_FILE = f"{SCRATCH_DIR}/groups_db"
 F_SERVICE_DB_FILE = f"{SCRATCH_DIR}/service_db"
 
+# Per-user channel keys (RSA key pairs used to receive downloaded data). Each
+# user's keys live under CHANNEL_KEYS_DIR/<user_name>/.
+CHANNEL_KEYS_DIR = os.path.join(SCRATCH_DIR, "channel_keys")
+
+# Guardian deployment: the owner "deploy behind a guardian" action shells out to
+# guardian/run.sh. It defaults to the sibling guardian directory in the repo but
+# can be overridden via the environment. The guardian is published on
+# GUARDIAN_PORT at F_SERVICE_HOST (the service host the webapp is configured with).
+GUARDIAN_DIR = os.environ.get("GUARDIAN_DIR", str(BASE_DIR.parent.parent / "guardian"))
+GUARDIAN_IMAGE = os.environ.get("GUARDIAN_IMAGE", "mlcommons/toy_guardian:latest")
+GUARDIAN_PORT = os.environ.get("GUARDIAN_PORT", "7900")
+GUARDIAN_SSERVICE_PORT = os.environ.get("GUARDIAN_SSERVICE_PORT", "7901")
+
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",

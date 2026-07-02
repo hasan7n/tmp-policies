@@ -29,8 +29,25 @@
         </table>
     </div>
 
+    <div class="card">
+        <div class="card-header" style="margin-bottom:0.75rem">
+            <h2 style="margin:0">Guardian</h2>
+            {% if not guardian_deployed %}
+            <button type="button" class="btn btn-sm btn-primary" id="deploy-guardian-btn">
+                Deploy the asset behind a guardian</button>
+            {% endif %}
+        </div>
+        {% if guardian_deployed %}
+        <p style="margin:0">Your asset is behind the guardian running on
+            <strong>{{ guardian_endpoint }}</strong>.</p>
+        {% else %}
+        <p style="color:#999;margin:0">This asset is not behind a guardian yet.
+            Deploy one to expose it.</p>
+        {% endif %}
+    </div>
+
     <div class="card" id="use-result-card" style="display:none; margin-bottom:1rem">
-        <h2>Download Result</h2>
+        <h2>Decrypted Data</h2>
         <pre class="code-block" id="use-result-output"></pre>
     </div>
 
@@ -81,7 +98,7 @@
         {% endif %}
     </div>
 
-    {% else %}
+    {% elif guardian_deployed %}
     <div class="card">
         <div class="card-header" style="margin-bottom:0.75rem">
             <h2 style="margin:0">Expose</h2>
