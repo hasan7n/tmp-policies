@@ -196,7 +196,7 @@ For the tutorial's sake, the dataset is a single small file. **It is already cre
 2. **Name:** `data1`. **Data Path:** `/tmp/asset_data.txt` → **Register Asset**.
 3. Registration takes a few seconds — the app is also starting a **guardian** for the data and waiting for it to come up.
 
-*What's happening:* registering the asset also starts a **guardian** that serves `/tmp/asset_data.txt` (encrypting each response to the requester's channel key), waits until it is healthy, then records it on the asset. Open `data1` and you'll see *"Your asset is behind the guardian running on http://‹host›:7900."* The asset still needs a policy before anyone can use it — that's next.
+*What's happening:* registering the asset also starts a **guardian** that serves `/tmp/asset_data.txt` (encrypting each response to the requester's channel key). Open `data1` and you'll see *"Your asset is behind the guardian running on http://‹host›:‹port›."* The asset still needs a policy before anyone can use it — that's next.
 
 ### 3.2 Expose the asset behind the policy
 
@@ -232,11 +232,11 @@ The asset is now fully published: data behind a guardian, gated by a policy that
 
 ## Part 4 — Data user: use the asset
 
-Finally, the user requests the data. This is the step the seed script does **not** do — you're completing the loop.
+Finally, the user requests the data.
 
 > **🔁 Switch identity to `data_user`.**
 
-1. Go to **Assets**. The `data1` card now shows an enabled **Use** button. *(If an asset has no guardian, its Use button is disabled with a tooltip.)*
+1. Go to **Assets**. The `data1` card now shows an enabled **Use** button.
 2. Click **Use** → in the modal, select **`user_wallet`** → **Request Download**.
 3. After a moment, the **Decrypted Data** panel appears showing:
 
@@ -247,9 +247,9 @@ Finally, the user requests the data. This is the step the seed script does **not
 *What's happening* (the whole handshake, end to end):
 
 1. The app gathers the user's credentials (channel key, location, affiliation) into a single request.
-2. The **policy** checks that each credential is signed by the trusted issuer and that both rules pass — and since the same person satisfies both, it **approves** the request and passes along the user's channel key.
-3. That approval goes to the **guardian**, which encrypts the file to the user's channel key and returns it.
-4. The app decrypts it with `data_user`'s **private** channel key and shows only the plaintext — no file paths, no ciphertext.
+2. The **policy** checks that each credential is signed by the trusted issuer and that both rules pass — and since the same person satisfies both, it **approves** the request and issues a capability package containing the user's channel key.
+3. That capability package goes to the **guardian**, which encrypts the file to the user's channel key and returns it.
+4. The app decrypts it with `data_user`'s **private** channel key and shows you the data.
 
 ---
 
@@ -263,14 +263,14 @@ data_user's wallet  ──presents──►  Policy (geographic + institution ru
                                         │ trusts vc_issuer
                                         │ checks the rules
                                         ▼
-                                    approved ──────────►  guardian
+                                    capability ──────────►  guardian
                                                              │ encrypts the file to
                                                              │ data_user's channel key
                                                              ▼
 data_user  ◄── decrypt with private channel key ──────  encrypted file
 ```
 
-The owner never saw the user's credentials by hand, the guardian never had to judge the rules itself, and the data only ever left the guardian encrypted to a key only the user holds.
+The owner never saw the user's credentials by hand, the guardian never had to judge the rules itself, and the data only ever left the guardian encrypted to a key only the compliant user holds.
 
 ---
 
@@ -280,4 +280,4 @@ The owner never saw the user's credentials by hand, the guardian never had to ju
 - **"You need to generate a channel key…"** on download — do Part 1.3 as `data_user`.
 - **Download fails / decrypts to garbage** — the `publicKeyCredential` in the user's wallet must carry the *same* channel key the user currently holds. If you regenerated the channel key after issuing the credential, re-issue the public-key credential (Part 2.3) with the new key.
 - **Policy denies the download** — check that `LocationCredential.country` and `AffiliationCredential.isMemberOf` exactly match the owner's `allowedCountries` and `allowedInstitutions`, and that the issuer is trusted for all three types (Part 3.3).
-- **Guardian unreachable** — the guardian is started when you register the asset; if downloads fail, check that it's running (ports 7900/7901) and see the guardian deploy log.
+- **Guardian unreachable** — the guardian is started when you register the asset; if downloads fail, check that it's running and see the guardian deploy log.
