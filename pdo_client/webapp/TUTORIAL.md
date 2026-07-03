@@ -1,6 +1,6 @@
 # End-to-End Tutorial: Policy-Gated Data Sharing
 
-This guide walks you through the **entire flow by hand in the web UI**. By the end, a **data user** will download a file that a **data owner** published, but only because the user holds credentials — issued by a trusted **VC issuer** — that satisfy the owner's policy.
+This guide walks you through the **entire flow by hand in the web UI**. By the end, a **data user** will download a file that a **data owner** published, but only because the data user holds credentials — issued by a trusted **VC issuer** — that satisfy the owner's policy.
 
 ---
 
@@ -27,19 +27,14 @@ must hold for a download to go through:
 2. **Who you're with (institution rule):** the requester must belong to an
    **allowed institution** — we'll allow a sample **`did:example:university`**.
 
-On top of those, every request must carry the user's **channel key** — a personal
-key the data is encrypted to, so only that user can read what comes back.
-
 ### What you'll do, end to end
 
-1. **The user** sets up a wallet and generates a personal channel key.
-2. **The issuer** vouches for the user by signing three credentials — their channel
-   key, location (US), and institution (the sample university) — which land straight
-   in the user's wallet.
-3. **The owner** publishes the dataset — starts a **guardian** to hold the file,
+1. **The user** sets up a wallet and generates a personal channel key. Think of the wallet as the container that will hold verifiable credentials of the user. The channel key is needed to recieve the dataset at the end; it is used to establish a secure encrypted channel between the user and the asset guardian holding the dataset.
+2. **The issuer** vouches for the user by signing three credentials: a credential claiming that the user is in a certain location (US), a credential claiming that the user belongs to a certain institution (did:example:university)m and a credential claiming that the user owns a certain channel key. **Important**: the signed credentials alone don't unlock access to the dataset. The policy object protecting the dataset will unlock access to the dataset only if the credentials contain suitable claims AND if the credentials are signed (i.e. vouched by) an issuer trusted by this policy object.
+3. **The owner** publishes the dataset — starts a **guardian** to hold the data file,
    attaches the two rules, and declares that it trusts the issuer.
-4. **The user** requests the file. The rules are checked automatically; because the
-   user qualifies, the file comes back encrypted to their channel key and is
+4. **The user** requests the data file. The rules are checked automatically; because the
+   user qualifies, the file comes back encrypted for their channel key and is
    decrypted for them on screen.
 
 Everything below is just these steps, in detail.
@@ -64,18 +59,18 @@ three roles are:
 
 ### A few words you'll meet
 
-- **Wallet** — your personal container for keys and credentials; owners, issuers,
-  and users each have one. It has a unique id (a **DID**) like `did:pdo:…`.
+- **Wallet** — your personal container for signing keys and credentials; owners, issuers,
+  and users each have wallets. It has a unique id (a **DID**) like `did:pdo:…`.
 - **Signing context** — a labeled signing key an issuer signs with (e.g. `poc`),
   written as `did:pdo:…#poc`.
 - **Credential** — a signed statement about someone (e.g. "this person is in the
-  US"). One wallet issues it; another stores it.
+  US").
 - **Channel key** — a personal key pair the *user* generates. Data is encrypted to
   the **public** half; only the user's **private** half can open it.
-- **Guardian** — a small service that holds the actual file and hands it out
+- **Guardian** — a service that holds the actual data file and hands it out
   (encrypted) only once a request has been approved.
 - **Policy** — the owner's rules, enforced automatically. When a user asks for the
-  data, the policy checks their credentials and, if they qualify, approves a single
+  data, the policy checks their credentials and, if they qualify, approves
   download.
 
 ---
