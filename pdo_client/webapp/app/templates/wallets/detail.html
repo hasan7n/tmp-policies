@@ -16,7 +16,11 @@
         <h2>Wallet Info</h2>
         <table class="data-table" style="margin-top:0.75rem">
             <tbody>
-                <tr><td><strong>DID</strong></td><td class="did-display">{{ wallet.did }}</td></tr>
+                <tr><td><strong>DID</strong></td>
+                    <td>
+                        <span class="did-display">{{ wallet.did }}</span>
+                        <button type="button" class="btn btn-sm" data-copy="{{ wallet.did }}">Copy</button>
+                    </td></tr>
             </tbody>
         </table>
     </div>
@@ -41,7 +45,11 @@
                 {% for c in signing_contexts %}
                 <tr>
                     <td><strong>{{ c.path|join:"/" }}</strong></td>
-                    <td class="did-display">{{ wallet.did }}#{{ c.path|join:"/" }}</td>
+                    <td>
+                        <span class="did-display">{{ wallet.did }}#{{ c.path|join:"/" }}</span>
+                        <button type="button" class="btn btn-sm"
+                                data-copy="{{ wallet.did }}#{{ c.path|join:'/' }}">Copy</button>
+                    </td>
                     <td>{{ c.description }}</td>
                     <td>
                         <button type="button" class="btn btn-sm"

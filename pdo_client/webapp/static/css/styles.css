@@ -106,6 +106,19 @@ body {
 }
 .nav-identity-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
 
+.nav-identity-select {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.nav-identity-select:hover { background: rgba(255,255,255,0.2); }
+/* dropdown list renders on a light background in most browsers */
+.nav-identity-select option { color: #000; }
+
 .nav-settings-link {
     color: #b0c8e8;
     text-decoration: none;

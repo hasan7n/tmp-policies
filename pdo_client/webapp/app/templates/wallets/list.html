@@ -19,6 +19,7 @@
             <div class="card-meta did-display">{{ w.did }}</div>
             <div class="card-actions">
                 <a href="{% url 'wallet_detail' cid_url=w.cid_url %}" class="btn btn-sm">Open</a>
+                <button type="button" class="btn btn-sm" data-copy="{{ w.did }}">Copy DID</button>
             </div>
         </div>
         {% endfor %}

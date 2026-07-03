@@ -36,8 +36,9 @@ class IdentitySetView(View):
 
     def post(self, request):
         public_key = (request.POST.get("public_key") or "").strip()
-        referer = request.META.get("HTTP_REFERER", "/")
         if not public_key:
-            return redirect_with_msg(referer, "public_key is required", "error")
+            return redirect_with_msg("/", "public_key is required", "error")
         set_current_identity(public_key)
-        return redirect_with_msg(referer, f"Identity set to {public_key}.", "success")
+        # Always land on the home page after switching identity, so the view
+        # reflects the newly selected user's contracts.
+        return redirect_with_msg("/", f"Identity set to {public_key}.", "success")
