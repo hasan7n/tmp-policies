@@ -65,16 +65,27 @@ F_SERVICE_DB_FILE = f"{SCRATCH_DIR}/service_db"
 # user's keys live under CHANNEL_KEYS_DIR/<user_name>/.
 CHANNEL_KEYS_DIR = os.path.join(SCRATCH_DIR, "channel_keys")
 
-# Guardian deployment: the owner "deploy behind a guardian" action builds a
-# guardian/run.sh command (for the owner to run) that starts the guardian
+# Guardian deployment: registering an asset also starts a guardian for it,
 # published on GUARDIAN_PORT at F_SERVICE_HOST (the service host the webapp is
 # configured with). GUARDIAN_DIR locates run.sh; it defaults to the sibling
-# guardian directory in the repo but can be overridden via the environment (e.g.
-# to a host path when the webapp itself runs in a container).
+# guardian directory in the repo but must be overridden (to a host path) when the
+# webapp runs in a container, since the command runs on the host.
 GUARDIAN_DIR = os.environ.get("GUARDIAN_DIR", str(BASE_DIR.parent.parent / "guardian"))
 GUARDIAN_IMAGE = os.environ.get("GUARDIAN_IMAGE", "mlcommons/toy_guardian:latest")
 GUARDIAN_PORT = os.environ.get("GUARDIAN_PORT", "7900")
 GUARDIAN_SSERVICE_PORT = os.environ.get("GUARDIAN_SSERVICE_PORT", "7901")
+
+# When the webapp itself runs inside a container it has no Docker access, so it
+# cannot run the guardian directly. Instead it writes the guardian command as a
+# shell script into GUARDIAN_DEPLOY_DIR (a directory shared with the host); the
+# host-side webapp launcher watches that directory and runs each script. When
+# not containerized, the webapp runs the guardian command itself.
+CONTAINERIZED_DEPLOYMENT = os.environ.get(
+    "CONTAINERIZED_DEPLOYMENT", ""
+).lower() in ("1", "true", "yes")
+GUARDIAN_DEPLOY_DIR = os.environ.get(
+    "GUARDIAN_DEPLOY_DIR", os.path.join(SCRATCH_DIR, "guardian_requests")
+)
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",

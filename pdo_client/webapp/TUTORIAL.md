@@ -57,7 +57,9 @@ Everything runs against a single client identity at a time. You "become" each ro
 
 ## Part 0 — Start the WebUI
 
-**TBD. It will be just click on codespaces**.
+Open this repository in a **GitHub Codespace** (green **Code** button → **Create codespace**). The devcontainer automatically brings up the ledger, services, registries, and the webapp, and creates the tutorial data file for you. The first start pulls several images, so give it a few minutes — progress shows in the Codespaces log.
+
+When it's ready, open the forwarded **port 8000** (the **Ports** tab) to reach the WebUI, then follow the steps below.
 
 ---
 
@@ -184,42 +186,19 @@ Now the owner puts data on offer, stands up a guardian for it, and defines the r
 
 > **🔁 Switch identity to `data_owner`.**
 
-### 3.0 Create a data file (on the guardian host)
+### 3.0 The data file
 
-For the tutorial sake, the dataset will be a single data file. Create a small one on the machine where you'll run the guardian:
+For the tutorial's sake, the dataset is a single small file. **It is already created for you at `/tmp/asset_data.txt`** — you don't need to create anything.
 
-```bash
-echo "The eagle lands at midnight." > /tmp/asset_data.txt
-```
-
-### 3.1 Register the asset
+### 3.1 Register the asset (and start its guardian)
 
 1. Go to **Assets** (navbar) → **+ Register Asset**.
 2. **Name:** `data1`. **Data Path:** `/tmp/asset_data.txt` → **Register Asset**.
+3. Registration takes a few seconds — the app is also starting a **guardian** for the data and waiting for it to come up.
 
-*What's happening:* this registers the file as an **asset** and records where its data lives. It isn't protected or shareable yet — that comes next.
+*What's happening:* registering the asset also starts a **guardian** that serves `/tmp/asset_data.txt` (encrypting each response to the requester's channel key), waits until it is healthy, then records it on the asset. Open `data1` and you'll see *"Your asset is behind the guardian running on http://‹host›:7900."* The asset still needs a policy before anyone can use it — that's next.
 
-### 3.2 Deploy the guardian
-
-1. On **Assets**, click **Open** on `data1`.
-2. In the **Guardian** card, click **Deploy the asset behind a guardian**.
-3. A **Start the guardian** popup shows a ready-to-run command. Click **Copy** and run it **on the guardian host**. It looks like:
-
-   ```bash
-   bash /…/guardian/run.sh \
-       --image mlcommons/toy_guardian:latest \
-       --interface 0.0.0.0 \
-       --port 7900 \
-       --sservice-port 7901 \
-       --guardian-host <service-host> \
-       --data-path /tmp/asset_data.txt
-   ```
-
-4. Back in the popup, click **Done**. The Guardian card now reads *"Your asset is behind the guardian running on http://‹host›:7900."*
-
-*What's happening:* the app doesn't launch the guardian itself (that keeps it working even when the web app runs in a container). It hands you the exact command and records the guardian's host/port on the asset. The command starts a container that mounts your data file and serves it — encrypting each response to the requester's channel key.
-
-### 3.3 Expose the asset behind the policy
+### 3.2 Expose the asset behind the policy
 
 1. Still on `data1`, click **Expose** → the **Expose Asset** modal opens.
 2. Under **Policies**, check **GS** and **IS**. (Use **View** to read what each does.)
@@ -236,7 +215,7 @@ echo "The eagle lands at midnight." > /tmp/asset_data.txt
 
 *What's happening:* this attaches the **policy** to the asset — the two rules plus the allowed values you entered — so every future request is checked automatically. The geographic rule asks for a location in an allowed country **plus** the user's channel key; the institution rule asks for membership in an allowed institution **plus** the channel key — and both must describe the **same person**.
 
-### 3.4 Trust the issuer
+### 3.3 Trust the issuer
 
 The policy knows the *rules* but not yet *whose signatures to believe*.
 
@@ -297,8 +276,8 @@ The owner never saw the user's credentials by hand, the guardian never had to ju
 
 ## Troubleshooting
 
-- **Use button is disabled** — the asset has no guardian yet. The owner must complete Part 3.2.
+- **Use button is disabled** — the asset isn't behind a guardian. The guardian is started while you register the asset (Part 3.1); if it failed to come up, registration would have reported an error — re-register the asset.
 - **"You need to generate a channel key…"** on download — do Part 1.3 as `data_user`.
 - **Download fails / decrypts to garbage** — the `publicKeyCredential` in the user's wallet must carry the *same* channel key the user currently holds. If you regenerated the channel key after issuing the credential, re-issue the public-key credential (Part 2.3) with the new key.
-- **Policy denies the download** — check that `LocationCredential.country` and `AffiliationCredential.isMemberOf` exactly match the owner's `allowedCountries` and `allowedInstitutions`, and that the issuer is trusted for all three types (Part 3.4).
-- **Guardian unreachable** — make sure the command from Part 3.2 is actually running on the host and ports 7900/7901 are reachable at the recorded host.
+- **Policy denies the download** — check that `LocationCredential.country` and `AffiliationCredential.isMemberOf` exactly match the owner's `allowedCountries` and `allowedInstitutions`, and that the issuer is trusted for all three types (Part 3.3).
+- **Guardian unreachable** — the guardian is started when you register the asset; if downloads fail, check that it's running (ports 7900/7901) and see the guardian deploy log.

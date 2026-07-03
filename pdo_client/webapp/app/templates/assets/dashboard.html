@@ -30,42 +30,14 @@
     </div>
 
     <div class="card">
-        <div class="card-header" style="margin-bottom:0.75rem">
-            <h2 style="margin:0">Guardian</h2>
-            {% if not guardian_deployed %}
-            <button type="button" class="btn btn-sm btn-primary" id="deploy-guardian-btn">
-                Deploy the asset behind a guardian</button>
-            {% endif %}
-        </div>
+        <h2 style="margin:0 0 0.5rem">Guardian</h2>
         {% if guardian_deployed %}
         <p style="margin:0">Your asset is behind the guardian running on
             <strong>{{ guardian_endpoint }}</strong>.</p>
         {% else %}
-        <p style="color:#999;margin:0">This asset is not behind a guardian yet.
-            Deploy one to expose it.</p>
+        <p style="color:#999;margin:0">No guardian recorded for this asset.</p>
         {% endif %}
     </div>
-
-    {% if not guardian_deployed %}
-    <div id="guardian-command-modal" class="modal-backdrop hidden">
-        <div class="modal" style="max-width:820px">
-            <div class="modal-header">
-                <span class="modal-title">Start the guardian</span>
-                <button type="button" class="modal-close" id="guardian-command-close"
-                        data-modal-close="guardian-command-modal">&times;</button>
-            </div>
-            <p>Run this command on the guardian host to start the guardian for
-                this asset:</p>
-            <pre class="code-block" id="guardian-command-output"
-                 style="white-space:pre-wrap"></pre>
-            <div class="form-actions">
-                <button type="button" class="btn" id="guardian-command-copy">Copy</button>
-                <button type="button" class="btn btn-primary"
-                        id="guardian-command-done">Done</button>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 
     <div class="card" id="use-result-card" style="display:none; margin-bottom:1rem">
         <h2>Decrypted Data</h2>

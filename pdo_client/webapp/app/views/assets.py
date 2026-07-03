@@ -141,45 +141,56 @@ class AssetsListView(BaseView):
 
 
 class AssetSetupView(BaseView):
-    """GET: registration form. POST: register an asset.
+    """GET: registration form. POST: deploy a guardian for the data and register
+    the asset.
 
-    The asset still gets its own (signature_authority-backed) contract so
-    it has a stable DID in the registry. Policy/token contracts are only
-    created later in the expose flow.
+    Registering an asset also starts a guardian serving the given data path; we
+    wait for the guardian to be healthy before recording it on the asset, so the
+    asset is only created once it is actually behind a running guardian.
     """
 
     def get(self, request):
         return render(request, "assets/setup.html")
+
+    def _error(self, request, message):
+        return render(
+            request,
+            "assets/setup.html",
+            {"form": request.POST, "error": message},
+        )
 
     def post(self, request):
         name = (request.POST.get("name") or "").strip()
         data_source = (request.POST.get("data_source") or "").strip()
 
         if not all([name, data_source]):
-            return render(
-                request,
-                "assets/setup.html",
-                {
-                    "form": request.POST,
-                    "error": "All fields are required.",
-                },
-            )
+            return self._error(request, "All fields are required.")
 
         config = AppConfig.get_instance()
         user_name = config.public_key
+
+        # Deploy the guardian first and wait until it is up; only then register
+        # the asset, so an asset never exists without a working guardian.
+        try:
+            guardian_url, guardian_port = guardian_launcher.deploy_guardian(
+                data_source
+            )
+            guardian_launcher.wait_until_healthy(guardian_url, guardian_port)
+        except Exception as e:
+            logger.exception("Failed to deploy guardian")
+            return self._error(request, f"Failed to deploy guardian: {e}")
 
         try:
             contract_id = pdo_runner.create_wallet(name, user_name)
             did = make_did(contract_id)
 
-            # Guardian URL/port are unknown until the owner deploys a guardian
-            # for this asset (see AssetDeployGuardianEndpoint); only the data
-            # path is recorded here.
             registry_asset = registry_client.register_asset(
                 name=name,
                 did=did,
                 metadata={
                     "data_source": data_source,
+                    "guardian_url": guardian_url,
+                    "guardian_port": guardian_port,
                 },
             )
 
@@ -193,16 +204,11 @@ class AssetSetupView(BaseView):
 
         except Exception as e:
             logger.exception("Failed to register asset")
-            return render(
-                request,
-                "assets/setup.html",
-                {
-                    "form": request.POST,
-                    "error": f"Failed to register asset: {e}",
-                },
-            )
+            return self._error(request, f"Failed to register asset: {e}")
 
-        return redirect_with_msg("/", f'Asset "{name}" registered.', "success")
+        return redirect_with_msg(
+            "/", f'Asset "{name}" registered and running behind a guardian.', "success"
+        )
 
 
 class AssetDashboardView(BaseView):
@@ -433,53 +439,6 @@ class AssetExposeView(BaseView):
 # ============================================================
 # JSON endpoints
 # ============================================================
-class AssetDeployGuardianEndpoint(JsonView):
-    """POST — record the guardian host/port on the asset and return a
-    ready-to-run ``guardian/run.sh`` command the owner runs to start the
-    guardian.
-
-    The webapp does not launch the guardian itself (so this works even when the
-    webapp runs inside a container with no Docker access); the guardian serves
-    the file at the asset's recorded data path. Exposing the asset is only
-    possible once this has run.
-    """
-
-    def handle(self, request, data, cid_url):
-        contract_id = decode_cid(cid_url)
-        user_name = AppConfig.get_instance().public_key
-        _require_user_asset(user_name, contract_id)
-        did = make_did(contract_id)
-
-        try:
-            asset = registry_client.get_asset_by_did(did) or {}
-        except Exception as e:
-            raise ValidationError(f"failed to look up asset in registry: {e}")
-        meta = asset.get("metadata", {}) or {}
-
-        if meta.get("guardian_url") and meta.get("guardian_port"):
-            raise ValidationError("A guardian is already deployed for this asset.")
-
-        data_path = (meta.get("data_source") or "").strip()
-        if not data_path:
-            raise ValidationError("Asset has no data path recorded.")
-
-        command, guardian_url, guardian_port = guardian_launcher.guardian_run_command(
-            data_path
-        )
-
-        registry_client.update_asset_metadata_by_did(
-            did, {"guardian_url": guardian_url, "guardian_port": guardian_port}
-        )
-        return {
-            "ok": True,
-            "command": command,
-            "message": (
-                "Run the command shown to start the guardian on "
-                + _guardian_url_port(guardian_url, guardian_port)
-            ),
-        }
-
-
 class AssetUseEndpoint(JsonView):
     """POST {asset_did, wallet_id} — run the consumer download flow, decrypt the
     downloaded data with the user's private channel key, and return ``{data}``.

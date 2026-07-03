@@ -48,6 +48,9 @@ done
 [ -n "$GUARDIAN_HOST" ]   || { echo "Missing required option: -g/--guardian-host" >&2; usage >&2; exit 1; }
 [ -n "$DATA_PATH" ]       || { echo "Missing required option: -d/--data-path" >&2; usage >&2; exit 1; }
 
+# Replace any guardian already running under this name so a redeploy is idempotent.
+docker rm -f pdo-guardian >/dev/null 2>&1 || true
+
 docker run --rm --env F_GUARDIAN_HOST=$GUARDIAN_HOST --env INTERFACE=0.0.0.0 --user "$(id -u):0" \
     -v "${DATA_PATH}:${CONTAINER_DATA_PATH}:ro" \
     --env "GUARDIAN_DATA_PATH=${CONTAINER_DATA_PATH}" \

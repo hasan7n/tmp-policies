@@ -2,7 +2,6 @@ from django.urls import path
 
 from .views.assets import (
     AssetDashboardView,
-    AssetDeployGuardianEndpoint,
     AssetExposeView,
     AssetRegisterPolicyIssuerEndpoint,
     AssetSetupView,
@@ -63,11 +62,6 @@ urlpatterns = [
     ),
     # JSON endpoints
     path("api/assets/use/", AssetUseEndpoint.as_view(), name="api_asset_use"),
-    path(
-        "api/assets/<str:cid_url>/deploy-guardian/",
-        AssetDeployGuardianEndpoint.as_view(),
-        name="api_asset_deploy_guardian",
-    ),
     path(
         "api/assets/<str:cid_url>/register-policy-issuer/",
         AssetRegisterPolicyIssuerEndpoint.as_view(),
