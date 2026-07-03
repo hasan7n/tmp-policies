@@ -3,11 +3,14 @@ Public key / identity abstraction layer.
 The current identity is the public_key field of the singleton AppConfig.
 """
 
+import logging
 import os
 
 from django.conf import settings
 
 from .models import AppConfig
+
+logger = logging.getLogger(__name__)
 
 _KEY_SUFFIX = "_private.pem"
 
@@ -39,6 +42,33 @@ def set_current_identity(public_key):
     config = AppConfig.get_instance()
     config.public_key = public_key
     config.save(update_fields=["public_key"])
+
+
+def ensure_provisioned(user_name):
+    """Give a user a wallet and a channel key if they don't have them yet.
+
+    Called when the identity is switched, so a user is ready to use without any
+    manual setup. Idempotent (skips whatever already exists) and best-effort —
+    failures are logged but never block the switch.
+    """
+    if not user_name:
+        return
+
+    # Imported lazily: pdo_runner pulls in the heavy pdo.* stack, and this module
+    # is imported on every request (context processor).
+    from . import channel_keys, ledger_client, pdo_runner
+
+    try:
+        if not ledger_client.list_signature_authority_ids(user_name):
+            pdo_runner.create_wallet("wallet", user_name)
+    except Exception:
+        logger.exception("Failed to ensure a wallet for %s", user_name)
+
+    try:
+        if not channel_keys.has_channel_key(user_name):
+            channel_keys.generate(user_name)
+    except Exception:
+        logger.exception("Failed to ensure a channel key for %s", user_name)
 
 
 def is_configured():

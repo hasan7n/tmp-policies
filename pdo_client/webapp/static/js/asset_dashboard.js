@@ -52,6 +52,84 @@
             document.getElementById('policy-detail-modal').classList.remove('hidden');
         });
 
+        // ---- Expose: dynamic "trusted issuers" boxes ----
+        // Each box collects an issuer DID + chosen credential types. On submit
+        // they're serialized into a hidden field the expose view reads.
+        var addIssuerBtn = document.getElementById('expose-add-issuer');
+        var issuersContainer = document.getElementById('expose-trusted-issuers');
+        var issuersHidden = document.getElementById('expose-trusted-issuers-json');
+        var exposeForm = document.getElementById('expose-form');
+        if (addIssuerBtn && issuersContainer && issuersHidden && exposeForm) {
+            var ctEl = document.getElementById('expose-credential-types-data');
+            var credentialTypes = ctEl ? JSON.parse(ctEl.textContent) : [];
+
+            function addIssuerBox() {
+                var box = document.createElement('div');
+                box.className = 'trusted-issuer-box';
+                box.style.cssText =
+                    'border:1px solid #ddd;border-radius:4px;padding:0.5rem;margin-bottom:0.5rem';
+
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:0.5rem';
+                var did = document.createElement('input');
+                did.type = 'text';
+                did.className = 'ti-did';
+                did.placeholder = 'did:pdo:<contract_id>#<signing_context>';
+                did.style.flex = '1';
+                var del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'btn btn-sm';
+                del.title = 'Remove';
+                del.textContent = '🗑';
+                del.addEventListener('click', function () { box.remove(); });
+                row.appendChild(did);
+                row.appendChild(del);
+                box.appendChild(row);
+
+                var types = document.createElement('div');
+                types.className = 'ti-types checkbox-list';
+                types.style.marginTop = '0.5rem';
+                if (!credentialTypes.length) {
+                    types.innerHTML =
+                        '<p style="color:#999;margin:0">No credential templates available.</p>';
+                } else {
+                    credentialTypes.forEach(function (t) {
+                        var label = document.createElement('label');
+                        label.className = 'checkbox-item';
+                        var cb = document.createElement('input');
+                        cb.type = 'checkbox';
+                        cb.value = t;
+                        var span = document.createElement('span');
+                        span.textContent = t;
+                        label.appendChild(cb);
+                        label.appendChild(span);
+                        types.appendChild(label);
+                    });
+                }
+                box.appendChild(types);
+                issuersContainer.appendChild(box);
+            }
+
+            addIssuerBtn.addEventListener('click', addIssuerBox);
+
+            // Serialize the boxes just before the native form submit.
+            exposeForm.addEventListener('submit', function () {
+                var out = [];
+                issuersContainer
+                    .querySelectorAll('.trusted-issuer-box')
+                    .forEach(function (box) {
+                        var d = (box.querySelector('.ti-did').value || '').trim();
+                        var chosen = Array.from(
+                            box.querySelectorAll('.ti-types input:checked')
+                        ).map(function (cb) { return cb.value; });
+                        if (d && chosen.length) {
+                            out.push({ did: d, credential_types: chosen });
+                        }
+                    });
+                issuersHidden.value = JSON.stringify(out);
+            });
+        }
+
         // ---- Use: POST to /api/assets/use/, render result inline ----
         var useForm = document.getElementById('use-form');
         if (useForm) {

@@ -205,6 +205,19 @@
             <textarea id="id_policy_data" name="policy_data" class="mono" rows="8"></textarea>
         </div>
 
+        <div class="form-group">
+            <label>Trusted Issuers</label>
+            <p style="color:#999;margin:0 0 0.5rem;font-size:0.85rem">
+                Issuers whose signed credentials this policy will trust. Optional
+                here — you can also add them later from the dashboard.</p>
+            {% if credential_templates_error %}
+            <div class="alert alert-error">{{ credential_templates_error }}</div>
+            {% endif %}
+            <div id="expose-trusted-issuers"></div>
+            <button type="button" class="btn btn-sm" id="expose-add-issuer">+ Add a trusted issuer</button>
+        </div>
+        <input type="hidden" name="trusted_issuers" id="expose-trusted-issuers-json">
+
         <div class="form-actions">
             <button type="submit" class="btn btn-primary"
                     {% if not templates %}disabled{% endif %}>Create Policy &amp; Expose</button>
@@ -215,6 +228,7 @@
 </div>
 
 {{ policy_details|json_script:"policy-details-data" }}
+{{ credential_type_options|json_script:"expose-credential-types-data" }}
 <div id="policy-detail-modal" class="modal-backdrop hidden">
     <div class="modal" style="max-width:760px">
         <div class="modal-header">

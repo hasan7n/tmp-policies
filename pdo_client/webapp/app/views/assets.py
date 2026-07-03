@@ -270,6 +270,7 @@ class AssetDashboardView(BaseView):
             "policy_details": {},
             "credential_templates": [],
             "credential_templates_error": None,
+            "credential_type_options": [],
         }
 
         token_did = metadata.get("policy_contract", "")
@@ -337,6 +338,19 @@ class AssetDashboardView(BaseView):
                 logger.exception("Failed to fetch policy templates")
                 ctx["templates_error"] = str(e)
 
+            # Credential types the expose form's inline "trusted issuers" section
+            # offers as checkboxes.
+            try:
+                ctx["credential_templates"] = (
+                    registry_client.list_credential_templates()
+                )
+                ctx["credential_type_options"] = [
+                    t.get("template_type") for t in ctx["credential_templates"]
+                ]
+            except Exception as e:
+                logger.exception("Failed to fetch credential templates")
+                ctx["credential_templates_error"] = str(e)
+
         return render(request, "assets/dashboard.html", ctx)
 
 
@@ -363,6 +377,17 @@ class AssetExposeView(BaseView):
             return redirect_with_msg(
                 dashboard_url, f"Invalid policy data JSON: {e}", "error"
             )
+
+        # Trusted issuers added inline in the expose form (optional). The JS
+        # serializes each box as {"did", "credential_types": [...]} into a hidden
+        # field; they are registered on the new policy after it is created.
+        trusted_issuers_raw = (request.POST.get("trusted_issuers") or "").strip()
+        try:
+            trusted_issuers = json.loads(trusted_issuers_raw) if trusted_issuers_raw else []
+        except json.JSONDecodeError:
+            trusted_issuers = []
+        if not isinstance(trusted_issuers, list):
+            trusted_issuers = []
 
         # The owner may select one or more policy templates; each becomes a Rego
         # subpolicy provisioned into the rego_policy_agent via set_rego_policy.
@@ -429,6 +454,39 @@ class AssetExposeView(BaseView):
             logger.exception("Failed to expose asset")
             return redirect_with_msg(
                 dashboard_url, f"Failed to expose asset: {e}", "error"
+            )
+
+        # The asset is now exposed; register any trusted issuers from the form as
+        # a best effort. A failed issuer is reported but doesn't undo the expose —
+        # it can be added later from the dashboard's Trusted Issuers section.
+        policy_id = result["policy_contract_id"]
+        issuer_errors = []
+        for entry in trusted_issuers:
+            if not isinstance(entry, dict):
+                continue
+            entry_did = (entry.get("did") or "").strip()
+            credential_types = entry.get("credential_types") or []
+            if not entry_did or not credential_types:
+                continue
+            try:
+                issuer_contract_id, issuer_path = parse_did(entry_did)
+                pdo_runner.register_policy_trusted_issuer(
+                    policy_id,
+                    issuer_contract_id,
+                    user_name,
+                    path=[issuer_path] if issuer_path else [],
+                    credential_types=credential_types,
+                )
+            except Exception as e:
+                logger.exception("Failed to register trusted issuer %s", entry_did)
+                issuer_errors.append(f"{entry_did}: {e}")
+
+        if issuer_errors:
+            return redirect_with_msg(
+                dashboard_url,
+                "Asset exposed, but some trusted issuers failed: "
+                + "; ".join(issuer_errors),
+                "error",
             )
 
         return redirect_with_msg(
