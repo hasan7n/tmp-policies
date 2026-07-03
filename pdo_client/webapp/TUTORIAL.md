@@ -33,16 +33,16 @@ key the data is encrypted to, so only that user can read what comes back.
 ### What you'll do, end to end
 
 1. **The user** sets up a wallet and generates a personal channel key.
-2. **The issuer** vouches for the user by signing three credentials: their channel
-   key, their location (US), and their institution (the sample university).
-3. **The user** collects those credentials into their wallet.
-4. **The owner** publishes the dataset — starts a **guardian** to hold the file,
+2. **The issuer** vouches for the user by signing three credentials — their channel
+   key, location (US), and institution (the sample university) — which land straight
+   in the user's wallet.
+3. **The owner** publishes the dataset — starts a **guardian** to hold the file,
    attaches the two rules, and declares that it trusts the issuer.
-5. **The user** requests the file. The rules are checked automatically; because the
+4. **The user** requests the file. The rules are checked automatically; because the
    user qualifies, the file comes back encrypted to their channel key and is
    decrypted for them on screen.
 
-Everything below is just these five steps, in detail.
+Everything below is just these steps, in detail.
 
 ---
 
@@ -150,7 +150,7 @@ be traced back to it and checked for authenticity.
 1. On `issuer_wallet` → **Signing Contexts** → **+ Register Signing Context**.
 2. Name: `poc`. Description: anything (e.g. `poc issuer`). → **Register**.
 3. In the new `poc` row, click **Copy** — this copies the full context id
-   `ISSUER_DID#poc`. **Keep it as `ISSUER_CONTEXT_DID`** for Part 4.4.
+   `ISSUER_DID#poc`. **Keep it as `ISSUER_CONTEXT_DID`** for Part 3.4.
 
 *What's happening:* `poc` is a named signing key inside the issuer's wallet. Every
 credential below is signed with it, and it's identified to the world as
@@ -170,10 +170,8 @@ credential below is signed with it, and it's identified to the world as
 
      Paste your copied key from step 1.3 in place of `USER_PUBLIC_KEY` (between the
      quotes).
-3. Click **Sign & Issue**. The **Signed Credential** card shows the signed credential —
-   **copy the whole JSON**.
-
-> 📋 Keep it as `SIGNED_PUBKEY_VC`.
+3. Click **Sign & Issue** — the credential is signed and stored in the user's
+   wallet automatically.
 
 *What's happening:* the issuer is attesting "the subject `USER_DID` controls this
 public key." The guardian will later encrypt the data to exactly this key.
@@ -197,7 +195,7 @@ public key." The guardian will later encrypt the data to exactly this key.
      }
      ```
 
-3. **Sign & Issue** → copy the signed credential as `SIGNED_LOCATION_VC`.
+3. **Sign & Issue** — stored in the user's wallet automatically.
 
 *What's happening:* this attests the subject's country is **US** — which must be
 in the owner's allowed-country list for the geographic policy (GS) to pass.
@@ -217,45 +215,25 @@ in the owner's allowed-country list for the geographic policy (GS) to pass.
      }
      ```
 
-3. **Sign & Issue** → copy the signed credential as `SIGNED_AFFILIATION_VC`.
+3. **Sign & Issue** — stored in the user's wallet automatically.
 
 *What's happening:* this attests the subject belongs to `did:example:university` —
 which must be in the owner's allowed-institution list for the institution policy
 (IS) to pass.
 
-You should now have three signed credentials copied somewhere handy.
+All three credentials are now in `data_user`'s wallet. (Switch to `data_user` and
+open `user_wallet` if you want to see them under **Stored Credentials**.)
 
 ---
 
-## Part 3 — Data user: store the credentials
-
-The credentials were *signed* by the issuer, but they live nowhere until the user
-saves them into their own wallet.
-
-> **🔁 Switch identity back to `data_user`.**
-
-1. **Wallets** → **Open** `user_wallet`.
-2. **Stored Credentials** → **+ Add Credential**.
-3. Paste `SIGNED_PUBKEY_VC` → **Add Credential**.
-4. Repeat **+ Add Credential** for `SIGNED_LOCATION_VC` and
-   `SIGNED_AFFILIATION_VC`.
-
-After adding all three, the **Stored Credentials** table lists
-`publicKeyCredential`, `LocationCredential`, and `AffiliationCredential`.
-
-*What's happening:* the user now holds a verifiable "wallet" of claims. When they
-request data, the app bundles these into a presentation for the policy to check.
-
----
-
-## Part 4 — Data owner: publish the data behind a policy
+## Part 3 — Data owner: publish the data behind a policy
 
 Now the owner puts data on offer, stands up a guardian for it, and defines the
 rules for who may download it.
 
 > **🔁 Switch identity to `data_owner`.**
 
-### 4.0 Create a data file (on the guardian host)
+### 3.0 Create a data file (on the guardian host)
 
 The guardian serves a **file**. Create a small one on the machine where you'll run
 the guardian:
@@ -267,7 +245,7 @@ echo "The eagle lands at midnight." > /tmp/asset_data.txt
 > ⚠️ The channel key is RSA-2048, so the file must be **small (≲190 bytes)** — it's
 > encrypted directly, not with a hybrid scheme.
 
-### 4.1 Register the asset
+### 3.1 Register the asset
 
 1. Go to **Assets** (navbar) → **+ Register Asset**.
 2. **Name:** `data1`. **Data Path:** `/tmp/asset_data.txt` → **Register Asset**.
@@ -275,7 +253,7 @@ echo "The eagle lands at midnight." > /tmp/asset_data.txt
 *What's happening:* this registers the file as an **asset** and records where its
 data lives. It isn't protected or shareable yet — that comes next.
 
-### 4.2 Deploy the guardian
+### 3.2 Deploy the guardian
 
 1. On **Assets**, click **Open** on `data1`.
 2. In the **Guardian** card, click **Deploy the asset behind a guardian**.
@@ -301,7 +279,7 @@ and records the guardian's host/port on the asset. The command starts a containe
 that mounts your data file and serves it — encrypting each response to the
 requester's channel key.
 
-### 4.3 Expose the asset behind the policy
+### 3.3 Expose the asset behind the policy
 
 1. Still on `data1`, click **Expose** → the **Expose Asset** modal opens.
 2. Under **Policies**, check **GS** and **IS**. (Use **View** to read what each
@@ -324,7 +302,7 @@ The geographic rule asks for a location in an allowed country **plus** the user'
 channel key; the institution rule asks for membership in an allowed institution
 **plus** the channel key — and both must describe the **same person**.
 
-### 4.4 Trust the issuer
+### 3.4 Trust the issuer
 
 The policy knows the *rules* but not yet *whose signatures to believe*.
 
@@ -344,7 +322,7 @@ trusts the issuer.
 
 ---
 
-## Part 5 — Data user: use the asset
+## Part 4 — Data user: use the asset
 
 Finally, the user requests the data. This is the step the seed script does **not**
 do — you're completing the loop.
@@ -400,7 +378,7 @@ key only the user holds.
 ## Troubleshooting
 
 - **Use button is disabled** — the asset has no guardian yet. The owner must
-  complete Part 4.2.
+  complete Part 3.2.
 - **"You need to generate a channel key…"** on download — do Part 1.3 as
   `data_user`.
 - **Download fails / decrypts to garbage** — the `publicKeyCredential` in the
@@ -410,6 +388,6 @@ key only the user holds.
 - **Policy denies the download** — check that `LocationCredential.country` and
   `AffiliationCredential.isMemberOf` exactly match the owner's `allowedCountries`
   and `allowedInstitutions`, and that the issuer is trusted for all three types
-  (Part 4.4).
-- **Guardian unreachable** — make sure the command from Part 4.2 is actually
+  (Part 3.4).
+- **Guardian unreachable** — make sure the command from Part 3.2 is actually
   running on the host and ports 7900/7901 are reachable at the recorded host.

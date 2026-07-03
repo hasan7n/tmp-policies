@@ -188,9 +188,8 @@ class WalletRegisterIssuerEndpoint(JsonView):
 
 
 class WalletSignCredentialEndpoint(JsonView):
-    """POST {signing_context, template_type, subject_did, claims} — sign a VC.
-
-    Returns the signed VC JSON on success.
+    """POST {signing_context, template_type, subject_did, claims} — sign a VC and
+    store it directly in the subject's wallet.
     """
 
     def handle(self, request, data, cid_url):
@@ -222,4 +221,9 @@ class WalletSignCredentialEndpoint(JsonView):
             credential_dict=credential,
             user_name=user_name,
         )
-        return {"ok": True, "signed_vc": signed_vc}
+        # Store the signed credential straight into the subject's wallet.
+        pdo_runner.wallet_add_vc(subject_contract_id, signed_vc, user_name)
+        return {
+            "ok": True,
+            "message": f"Credential issued and stored in {subject_did}.",
+        }

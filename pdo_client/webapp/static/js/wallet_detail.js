@@ -92,11 +92,7 @@
                 var res = await window.api.post(
                     '/api/wallets/' + cidUrl + '/sign-credential/', payload);
                 document.getElementById('sign-credential-modal').classList.add('hidden');
-                var out = document.getElementById('signed-vc-output');
-                out.textContent = JSON.stringify(res.signed_vc, null, 2);
-                document.getElementById('signed-vc-card').style.display = '';
-                document.getElementById('signed-vc-card').scrollIntoView({behavior:'smooth'});
-                window.flash('Credential signed.', 'success');
+                window.flash(res.message || 'Credential issued.', 'success');
             } catch (err) {
                 window.flash(err.message, 'error');
             }
