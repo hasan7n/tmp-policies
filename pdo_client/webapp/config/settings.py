@@ -19,9 +19,28 @@ def _require_env(name):
     except KeyError:
         raise ImproperlyConfigured(f"Required environment variable {name} is not set")
 
+
 SECRET_KEY = "django-insecure-client-app-key-change-in-production"
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
+
+# Since Django 4.0 the CSRF check validates the request Origin against this list
+# whenever the request arrives over HTTPS. A plain-HTTP localhost run skips the
+# check, but GitHub Codespaces forwards the port through an HTTPS tunnel, so
+# POSTs are rejected unless the forwarded origin is trusted. Trust localhost on
+# both schemes and the Codespaces port-forwarding domains; extra origins can be
+# appended via the CSRF_TRUSTED_ORIGINS env var (comma-separated).
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "https://localhost:8000",
+    "http://127.0.0.1:8000",
+    "https://127.0.0.1:8000",
+]
+_extra_csrf_origins = os.environ.get("CSRF_TRUSTED_ORIGINS", "")
+if _extra_csrf_origins:
+    CSRF_TRUSTED_ORIGINS += [
+        o.strip() for o in _extra_csrf_origins.split(",") if o.strip()
+    ]
 
 # -----------------------------------------------------------------
 # PDO + service configuration (formerly app/pdo_config.py).
@@ -80,9 +99,11 @@ GUARDIAN_SSERVICE_PORT = os.environ.get("GUARDIAN_SSERVICE_PORT", "7901")
 # shell script into GUARDIAN_DEPLOY_DIR (a directory shared with the host); the
 # host-side webapp launcher watches that directory and runs each script. When
 # not containerized, the webapp runs the guardian command itself.
-CONTAINERIZED_DEPLOYMENT = os.environ.get(
-    "CONTAINERIZED_DEPLOYMENT", ""
-).lower() in ("1", "true", "yes")
+CONTAINERIZED_DEPLOYMENT = os.environ.get("CONTAINERIZED_DEPLOYMENT", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 GUARDIAN_DEPLOY_DIR = os.environ.get(
     "GUARDIAN_DEPLOY_DIR", os.path.join(SCRATCH_DIR, "guardian_requests")
 )

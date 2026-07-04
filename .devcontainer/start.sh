@@ -49,21 +49,8 @@ echo "==> Creating the tutorial data file at /tmp/asset_data.txt"
 echo "The eagle lands at midnight." > /tmp/asset_data.txt
 
 echo "==> Starting the webapp (with the guardian deploy watcher)"
-rm -rf "$REPO/pdo_client/pdo_scratch"
-mkdir -p "$REPO/pdo_client/pdo_scratch"
-nohup bash pdo_client/docker/run_webapp.sh \
-    --image mlcommons/pdo_base_client:latest \
-    --interface "$INTERFACE" \
-    --port 8000 \
-    --cert-path /tmp/pdo_ledger/ccf/keys/networkcert.pem \
-    --site-toml /tmp/pdo_services/services/etc/site.toml \
-    --keys-folder /tmp/pdo_keys \
-    --scratch "$REPO/pdo_client/pdo_scratch" \
-    --ledger-url "http://$INTERFACE:6600" \
-    --service-host "$INTERFACE" \
-    --asset-registry-url "http://$INTERFACE:8001" \
-    --template-registry-url "http://$INTERFACE:8002" \
-    > /tmp/pdo_webapp.log 2>&1 &
+export CSRF_TRUSTED_ORIGINS="https://*.app.github.dev,https://*.githubpreview.dev"
+nohup bash docker_start_webapp.sh > /tmp/pdo_webapp.log 2>&1 &
 
 cat <<EOF
 

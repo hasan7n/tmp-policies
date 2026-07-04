@@ -6,6 +6,7 @@ mkdir -p $SCRIPT_DIR/pdo_scratch
 
 INTERFACE="$(hostname -I | awk '{print $1}')"
 bash pdo_client/docker/run_webapp.sh \
+    --env "CSRF_TRUSTED_ORIGINS=$CSRF_TRUSTED_ORIGINS" \
     --image mlcommons/pdo_base_client:latest \
     --interface 127.0.0.1 \
     --port 8000 \
