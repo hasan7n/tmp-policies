@@ -57,7 +57,13 @@ Everything runs against a single client identity at a time. You "become" each ro
 
 ## Part 0 — Start the WebUI
 
-Open this repository in a **GitHub Codespace** (green **Code** button → **Create codespace**). The devcontainer automatically brings up the ledger, services, registries, and the webapp, and creates the tutorial data file for you. The first start pulls several images, so give it a few minutes — progress shows in the Codespaces log.
+### Running in cloud via GitHub Codespaces
+
+You can launch a preinstalled [Codespace](https://github.com/features/codespaces) cloud environment by clicking this button:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/hasan7n/tmp-policies?ref=main)
+
+The devcontainer automatically brings up the ledger, services, registries, and the webapp, and creates the tutorial data file for you. The first start pulls several images, so give it a few minutes — progress shows in the Codespaces log.
 
 When it's ready, open the forwarded **port 8000** (the **Ports** tab) to reach the WebUI, then follow the steps below.
 
