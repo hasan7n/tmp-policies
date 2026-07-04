@@ -7,7 +7,7 @@ mkdir -p $SCRIPT_DIR/pdo_scratch
 INTERFACE="$(hostname -I | awk '{print $1}')"
 bash pdo_client/docker/run_webapp.sh \
     --image mlcommons/pdo_base_client:latest \
-    --interface $INTERFACE \
+    --interface 127.0.0.1 \
     --port 8000 \
     --cert-path /tmp/pdo_ledger/ccf/keys/networkcert.pem \
     --site-toml /tmp/pdo_services/services/etc/site.toml \
@@ -16,5 +16,5 @@ bash pdo_client/docker/run_webapp.sh \
     --ledger-url http://$INTERFACE:6600 \
     --service-host $INTERFACE \
     --asset-registry-url http://$INTERFACE:8001 \
-    --template-registry-url http://$INTERFACE:8002 \
-    --seed $SCRIPT_DIR/pdo_client/webapp/seeds/example_seed.py
+    --template-registry-url http://$INTERFACE:8002
+    # --seed $SCRIPT_DIR/pdo_client/webapp/seeds/example_seed.py

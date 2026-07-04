@@ -12,12 +12,16 @@ bash policy_engine/run_ledger.sh \
     --interface $INTERFACE \
     --port "6600" \
     --workspace /tmp/pdo_ledger &
-sleep 10
+
+CERT_PATH="/tmp/pdo_ledger/ccf/keys/networkcert.pem"
+while [ ! -f $CERT_PATH ]; do
+    sleep 1
+done
 # ports are always 7001 -> 7005, 7101 -> 7105, 7201 -> 7205
 bash policy_engine/run_services.sh \
     --image "mlcommons/pdo_services:latest" \
     --interface $INTERFACE \
     --ledger-url http://$INTERFACE:6600 \
     --workspace /tmp/pdo_services \
-    --cert-path /tmp/pdo_ledger/ccf/keys/networkcert.pem &
+    --cert-path $CERT_PATH &
 sleep 15
