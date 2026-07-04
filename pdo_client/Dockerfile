@@ -9,6 +9,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PDO_CONTRACTS_ROOT=/pdo-contracts
 ENV PDO_INSTALL_ROOT=/pdo_install
 
+# Rust toolchain, in a shared location so cargo/rustup are on PATH for every
+# later build layer. The rego-contract build shells out to cargo to compile the
+# Regorus FFI crate to a wasm32-wasip1 staticlib, which wasm-ld then folds into
+# the contract .wasm (linked against wasi-sdk-27 from install_system_deps.sh).
+ENV RUSTUP_HOME=/opt/rust
+ENV CARGO_HOME=/opt/cargo
+ENV PATH=/opt/cargo/bin:${PATH}
+
 WORKDIR /
 
 # Copy the build inputs and do the heavy build first. setup/ holds the install
@@ -18,6 +26,14 @@ WORKDIR /
 COPY setup/ /setup/
 
 RUN bash /setup/install_system_deps.sh
+
+# Pinned to the toolchain the Regorus staticlib was validated against (cargo
+# 1.95.0). wasm32-wasip1 is Rust's renamed wasm32-wasi target; its objects link
+# against the wasi-sdk-27 clang output at the contract link step.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --default-toolchain 1.95.0 --profile minimal && \
+    rustup target add wasm32-wasip1
+
 RUN bash /setup/clone_contracts.sh --repository "${REPOSITORY}" --branch "${BRANCH}"
 RUN bash /setup/install_pdo_client.sh
 RUN bash /setup/install_contracts.sh --families "${CONTRACT_FAMILIES}"
