@@ -1,25 +1,29 @@
 """Seed the template registry from files on disk.
 
 Credential templates come from the ``credentials/`` folder (one JSON Schema per
-credential) and policy templates come from the ``duos/`` folder (one subfolder
-per DUO). The command reads everything it needs from those folders, so adding a
-credential schema or a DUO -- or editing a rego module, its README, or its
-policy data schema -- is picked up simply by re-running it. It is idempotent
+credential) and policy templates come from the ``policy_cards/`` folder (one
+subfolder per DUO). Their locations are taken from the ``CREDENTIALS_DIR`` and
+``POLICY_CARDS_DIR`` environment variables, which are required -- the command
+fails if either is unset (run.sh sets them from its path arguments).
+
+The command reads everything it needs from those folders, so adding a credential
+schema or a DUO -- or editing a rego module, its README, or its policy data
+schema -- is picked up simply by re-running it. It is idempotent
 (``update_or_create`` keyed on the natural unique field).
 
     python manage.py seed_templates
 """
 
 import json
+import os
 from pathlib import Path
 
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from app.models import CredentialTemplate, PolicyTemplate
 
-CREDENTIALS_DIR = Path(settings.BASE_DIR) / "credentials"
-DUOS_DIR = Path(settings.BASE_DIR) / "duos"
+CREDENTIALS_DIR = Path(os.environ["CREDENTIALS_DIR"])
+POLICY_CARDS_DIR = Path(os.environ["POLICY_CARDS_DIR"])
 
 CREDENTIAL_SUFFIX = ".schema.json"
 
@@ -46,7 +50,7 @@ def _simplify(properties):
 class Command(BaseCommand):
     help = (
         "Seed credential templates (from credentials/) and policy templates "
-        "(from duos/)."
+        "(from policy_cards/)."
     )
 
     def handle(self, *args, **options):
@@ -69,7 +73,7 @@ class Command(BaseCommand):
 
     def _seed_policies(self):
         count = 0
-        for duo_dir in sorted(p for p in DUOS_DIR.iterdir() if p.is_dir()):
+        for duo_dir in sorted(p for p in POLICY_CARDS_DIR.iterdir() if p.is_dir()):
             rego_path = duo_dir / "policy.rego"
             if not rego_path.exists():
                 continue  # not a DUO module folder
