@@ -1,6 +1,6 @@
 // Assets page: clicking "Use" opens a modal pre-filled with the asset's
-// DID + name. Submit posts JSON to /api/assets/use/ and renders the
-// download result inline in #use-result-card.
+// DID + name. Submit streams the download flow through window.progress and
+// renders the decrypted result inline in #use-result-card.
 
 (function () {
     function init() {
@@ -15,21 +15,20 @@
 
         var form = document.getElementById('use-form');
         if (!form) return;
-        form.addEventListener('submit', async function (e) {
+        form.addEventListener('submit', function (e) {
             e.preventDefault();
             var payload = window.formToObject(form);
-            try {
-                var res = await window.api.post('/api/assets/use/', payload);
-                document.getElementById('use-modal').classList.add('hidden');
-                var card = document.getElementById('use-result-card');
-                var out = document.getElementById('use-result-output');
-                out.textContent = res.data;
-                card.style.display = '';
-                card.scrollIntoView({ behavior: 'smooth' });
-                window.flash('Data downloaded and decrypted.', 'success');
-            } catch (err) {
-                window.flash(err.message, 'error');
-            }
+            document.getElementById('use-modal').classList.add('hidden');
+            window.progress.run('/api/assets/use/stream/', payload, {
+                title: 'Using the asset…',
+                onComplete: function (term) {
+                    var card = document.getElementById('use-result-card');
+                    var out = document.getElementById('use-result-output');
+                    out.textContent = (term.result || {}).data || '';
+                    card.style.display = '';
+                    card.scrollIntoView({ behavior: 'smooth' });
+                },
+            });
         });
     }
 

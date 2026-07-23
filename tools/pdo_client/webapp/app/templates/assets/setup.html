@@ -14,7 +14,9 @@
         {% if error %}
         <div class="alert alert-error">{{ error }}</div>
         {% endif %}
-        <form method="post">
+        <form method="post"
+              data-progress-url="{% url 'asset_setup_stream' %}"
+              data-progress-title="Registering the asset…">
             {% csrf_token %}
             <div class="form-group">
                 <label for="id_name">Name</label>

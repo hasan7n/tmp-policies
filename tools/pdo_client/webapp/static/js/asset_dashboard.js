@@ -138,9 +138,12 @@
 
             addIssuerBtn.addEventListener('click', addIssuerBox);
 
-            // Serialize the boxes just before the native form submit.
-            exposeForm.addEventListener('submit', function () {
-                var out = [];
+            // Stream the expose flow instead of a plain POST: gather the chosen
+            // policies, policy data, and inline trusted issuers, then show live
+            // per-step progress. The terminal {redirect} reloads the dashboard.
+            exposeForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var issuers = [];
                 issuersContainer
                     .querySelectorAll('.trusted-issuer-box')
                     .forEach(function (box) {
@@ -149,31 +152,42 @@
                             box.querySelectorAll('.ti-types input:checked')
                         ).map(function (cb) { return cb.value; });
                         if (d && chosen.length) {
-                            out.push({ did: d, credential_types: chosen });
+                            issuers.push({ did: d, credential_types: chosen });
                         }
                     });
-                issuersHidden.value = JSON.stringify(out);
+                var policies = Array.from(
+                    exposeForm.querySelectorAll('input[name="policy_templates"]:checked')
+                ).map(function (cb) { return cb.value; });
+                if (!policies.length) {
+                    window.flash('Select at least one policy.', 'error');
+                    return;
+                }
+                var dataEl = document.getElementById('id_policy_data');
+                window.progress.run('/assets/' + cidUrl + '/expose/stream/', {
+                    policy_templates: policies,
+                    policy_data: dataEl ? dataEl.value : '',
+                    trusted_issuers: issuers,
+                }, { title: 'Exposing the asset…' });
             });
         }
 
-        // ---- Use: POST to /api/assets/use/, render result inline ----
+        // ---- Use: stream the download flow, render result inline ----
         var useForm = document.getElementById('use-form');
         if (useForm) {
-            useForm.addEventListener('submit', async function (e) {
+            useForm.addEventListener('submit', function (e) {
                 e.preventDefault();
                 var payload = window.formToObject(useForm);
-                try {
-                    var res = await window.api.post('/api/assets/use/', payload);
-                    document.getElementById('use-modal').classList.add('hidden');
-                    var card = document.getElementById('use-result-card');
-                    var out = document.getElementById('use-result-output');
-                    out.textContent = res.data;
-                    card.style.display = '';
-                    card.scrollIntoView({ behavior: 'smooth' });
-                    window.flash('Data downloaded and decrypted.', 'success');
-                } catch (err) {
-                    window.flash(err.message, 'error');
-                }
+                document.getElementById('use-modal').classList.add('hidden');
+                window.progress.run('/api/assets/use/stream/', payload, {
+                    title: 'Using the asset…',
+                    onComplete: function (term) {
+                        var card = document.getElementById('use-result-card');
+                        var out = document.getElementById('use-result-output');
+                        out.textContent = (term.result || {}).data || '';
+                        card.style.display = '';
+                        card.scrollIntoView({ behavior: 'smooth' });
+                    },
+                });
             });
         }
 

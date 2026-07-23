@@ -2,15 +2,18 @@ from django.urls import path
 
 from .views.assets import (
     AssetDashboardView,
+    AssetExposeStreamView,
     AssetExposeView,
     AssetRegisterPolicyIssuerEndpoint,
+    AssetSetupStreamView,
     AssetSetupView,
     AssetsListView,
     AssetUpdatePolicyDataEndpoint,
     AssetUseEndpoint,
+    AssetUseStreamView,
 )
 from .views.channel_keys import ChannelKeyGenerateEndpoint
-from .views.config import ConfigPageView, IdentitySetView
+from .views.config import ConfigPageView, IdentityProvisionView, IdentitySetView
 from .views.wallets import (
     WalletAddVCEndpoint,
     WalletDetailView,
@@ -35,6 +38,11 @@ urlpatterns = [
     path("", AssetsListView.as_view(), name="assets_page"),
     path("assets/setup/", AssetSetupView.as_view(), name="asset_setup"),
     path(
+        "assets/setup/stream/",
+        AssetSetupStreamView.as_view(),
+        name="asset_setup_stream",
+    ),
+    path(
         "assets/<str:cid_url>/",
         AssetDashboardView.as_view(),
         name="asset_dashboard",
@@ -43,6 +51,11 @@ urlpatterns = [
         "assets/<str:cid_url>/expose/",
         AssetExposeView.as_view(),
         name="asset_expose",
+    ),
+    path(
+        "assets/<str:cid_url>/expose/stream/",
+        AssetExposeStreamView.as_view(),
+        name="asset_expose_stream",
     ),
     # Wallets (pages)
     path("wallets/", WalletsListView.as_view(), name="wallets"),
@@ -54,6 +67,11 @@ urlpatterns = [
     # Config + identity (pages)
     path("config/", ConfigPageView.as_view(), name="config"),
     path("identity/set/", IdentitySetView.as_view(), name="identity_set"),
+    path(
+        "identity/provision/",
+        IdentityProvisionView.as_view(),
+        name="identity_provision",
+    ),
     # Channel key
     path(
         "api/channel-key/generate/",
@@ -62,6 +80,11 @@ urlpatterns = [
     ),
     # JSON endpoints
     path("api/assets/use/", AssetUseEndpoint.as_view(), name="api_asset_use"),
+    path(
+        "api/assets/use/stream/",
+        AssetUseStreamView.as_view(),
+        name="api_asset_use_stream",
+    ),
     path(
         "api/assets/<str:cid_url>/register-policy-issuer/",
         AssetRegisterPolicyIssuerEndpoint.as_view(),

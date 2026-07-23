@@ -53,8 +53,10 @@ GUARDIAN_HOST = "192.168.1.223"
 GUARDIAN_PORT = "7900"
 
 # The subpolicies selected for the demo asset and the policy data they read
-# (GS -> allowedCountries, IS -> allowedInstitutions).
-SELECTED_POLICIES = ["GS", "IS"]
+# (GS "geographical-restriction" -> allowedCountries, IS
+# "institution-specific-restriction" -> allowedInstitutions). The template names
+# are the policy-card folder names, uppercased, as the registry seeds them.
+SELECTED_POLICIES = ["GEOGRAPHICAL-RESTRICTION", "INSTITUTION-SPECIFIC-RESTRICTION"]
 ALLOWED_COUNTRY = "US"
 ALLOWED_INSTITUTION = "did:example:university"
 

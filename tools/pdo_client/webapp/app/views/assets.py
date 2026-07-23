@@ -2,7 +2,7 @@ import json
 import logging
 
 from django.conf import settings
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 
 from .. import (
@@ -22,8 +22,19 @@ from ._helpers import (
     redirect_with_msg,
     require,
 )
+from ._streaming import SkipStep, stream_steps
 
 logger = logging.getLogger(__name__)
+
+
+def _json_body(request):
+    """Parse a JSON request body into a dict (empty dict if absent/invalid)."""
+    if not request.body:
+        return {}
+    try:
+        return json.loads(request.body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return {}
 
 
 def _guardian_url_port(host, port):
@@ -626,3 +637,254 @@ class AssetUpdatePolicyDataEndpoint(JsonView):
             logger.exception("Failed to mirror policy_data into registry metadata")
 
         return {"ok": True, "message": "Policy data updated."}
+
+
+# ============================================================
+# Streaming variants (live per-step progress)
+#
+# Same work as the register / expose / use handlers above, but emitted as a
+# stream of progress steps (see app/views/_streaming.py) so the UI can show what
+# is happening behind the scenes. The page-form / JSON handlers above remain as
+# the plain fallbacks.
+# ============================================================
+class AssetSetupStreamView(BaseView):
+    """POST {name, data_source} — deploy a guardian then register the asset,
+    streaming progress. JS variant of :class:`AssetSetupView`."""
+
+    http_method_names = ["post"]
+
+    def post(self, request):
+        data = _json_body(request)
+        name = (data.get("name") or "").strip()
+        data_source = (data.get("data_source") or "").strip()
+        if not name or not data_source:
+            return JsonResponse(
+                {"error": "name and data_source are required"}, status=400
+            )
+        user_name = AppConfig.get_instance().public_key
+
+        def deploy(ctx):
+            url, port = guardian_launcher.deploy_guardian(data_source)
+            ctx["guardian_url"], ctx["guardian_port"] = url, port
+            return {"detail": f"{url}:{port}"}
+
+        def wait(ctx):
+            guardian_launcher.wait_until_healthy(
+                ctx["guardian_url"], ctx["guardian_port"]
+            )
+
+        def contract(ctx):
+            ctx["contract_id"] = pdo_runner.create_wallet(name, user_name)
+            return {"detail": _short_id(ctx["contract_id"])}
+
+        def register(ctx):
+            did = make_did(ctx["contract_id"])
+            reg = registry_client.register_asset(
+                name=name,
+                did=did,
+                metadata={
+                    "data_source": data_source,
+                    "guardian_url": ctx["guardian_url"],
+                    "guardian_port": ctx["guardian_port"],
+                },
+            )
+            pk = reg["id"]
+            registry_client.update_asset_metadata(
+                pk,
+                {
+                    "asset_registry_url": (
+                        f"{settings.ASSET_REGISTRY_URL.rstrip('/')}/api/assets/{pk}/"
+                    )
+                },
+            )
+
+        steps = [
+            ("guardian", "Deploying the guardian", deploy),
+            ("health", "Waiting for the guardian to be healthy", wait),
+            ("contract", "Creating the asset contract", contract),
+            ("register", "Registering the asset", register),
+        ]
+        return stream_steps(
+            steps,
+            complete=lambda ctx: {
+                "redirect": "/",
+                "message": f'Asset "{name}" registered and running behind a guardian.',
+            },
+        )
+
+
+class AssetExposeStreamView(BaseView):
+    """POST {policy_templates: [...], policy_data, trusted_issuers: [...]} —
+    create the policy + token, set data, update the registry, and register
+    trusted issuers, streaming progress. JS variant of :class:`AssetExposeView`."""
+
+    http_method_names = ["post"]
+
+    def post(self, request, cid_url):
+        contract_id = decode_cid(cid_url)
+        user_name = AppConfig.get_instance().public_key
+        _require_user_asset(user_name, contract_id)
+        did = make_did(contract_id)
+        dashboard_url = f"/assets/{cid_url}/"
+
+        data = _json_body(request)
+        policy_template_ids = data.get("policy_templates") or []
+        if not isinstance(policy_template_ids, list) or not policy_template_ids:
+            return JsonResponse({"error": "Select at least one policy."}, status=400)
+
+        policy_data_raw = (data.get("policy_data") or "").strip()
+        try:
+            policy_data = json.loads(policy_data_raw) if policy_data_raw else {}
+        except json.JSONDecodeError as e:
+            return JsonResponse({"error": f"Invalid policy data JSON: {e}"}, status=400)
+
+        trusted_issuers = data.get("trusted_issuers") or []
+        if not isinstance(trusted_issuers, list):
+            trusted_issuers = []
+
+        def load(ctx):
+            rego_modules = []
+            for tid in policy_template_ids:
+                tpl = registry_client.get_policy_template(tid)
+                source = (tpl.get("rego_source") or "").strip()
+                if not source:
+                    raise ValueError(
+                        f"Policy '{tpl.get('name', tid)}' has no rego source."
+                    )
+                rego_modules.append([tpl["name"], source])
+            meta = (registry_client.get_asset_by_did(did) or {}).get(
+                "metadata", {}
+            ) or {}
+            host, port = meta.get("guardian_url", ""), meta.get("guardian_port", "")
+            if not host or not port:
+                raise ValueError("Guardian URL/port missing on this asset.")
+            ctx["rego_modules"] = rego_modules
+            ctx["guardian"] = _guardian_url_port(host, port)
+            ctx["asset_name"] = meta.get("name") or _short_id(contract_id)
+            return {"detail": f"{len(rego_modules)} policy(ies)"}
+
+        def create_policy(ctx):
+            result = pdo_runner.create_asset_policy(
+                f"Policy for {ctx['asset_name']}",
+                ctx["guardian"],
+                user_name,
+                ctx["rego_modules"],
+            )
+            ctx["policy_id"] = result["policy_contract_id"]
+            ctx["token_id"] = result["token_contract_id"]
+
+        def set_data(ctx):
+            if not policy_data:
+                raise SkipStep("no policy data provided")
+            pdo_runner.set_policy_data(ctx["policy_id"], policy_data, user_name)
+
+        def update_registry(ctx):
+            registry_client.update_asset_metadata_by_did(
+                did,
+                {"policy_contract": make_did(ctx["token_id"]), "policy_data": policy_data},
+            )
+
+        def register_issuers(ctx):
+            entries = [
+                e
+                for e in trusted_issuers
+                if isinstance(e, dict)
+                and (e.get("did") or "").strip()
+                and (e.get("credential_types") or [])
+            ]
+            if not entries:
+                raise SkipStep("none provided")
+            errors = []
+            for entry in entries:
+                entry_did = entry["did"].strip()
+                try:
+                    issuer_contract_id, issuer_path = parse_did(entry_did)
+                    pdo_runner.register_policy_trusted_issuer(
+                        ctx["policy_id"],
+                        issuer_contract_id,
+                        user_name,
+                        path=[issuer_path] if issuer_path else [],
+                        credential_types=entry["credential_types"],
+                    )
+                except Exception as e:
+                    logger.exception("Failed to register trusted issuer %s", entry_did)
+                    errors.append(f"{entry_did}: {e}")
+            if errors:
+                return {"detail": "some issuers failed: " + "; ".join(errors)}
+            return {"detail": f"{len(entries)} issuer(s)"}
+
+        steps = [
+            ("load", "Loading the selected policies", load),
+            ("policy", "Creating the policy and token contracts", create_policy),
+            ("data", "Setting the policy data", set_data),
+            ("registry", "Updating the asset registry", update_registry),
+            ("issuers", "Registering trusted issuers", register_issuers),
+        ]
+        return stream_steps(
+            steps,
+            complete=lambda ctx: {
+                "redirect": dashboard_url,
+                "message": "Asset exposed via rego policy.",
+            },
+        )
+
+
+class AssetUseStreamView(BaseView):
+    """POST {asset_did, wallet_id} — run the consumer download flow and decrypt,
+    streaming progress. The decrypted data is returned on the terminal event as
+    ``result.data``. JS variant of :class:`AssetUseEndpoint`."""
+
+    http_method_names = ["post"]
+
+    def post(self, request):
+        data = _json_body(request)
+        asset_did = (data.get("asset_did") or "").strip()
+        wallet_id = (data.get("wallet_id") or "").strip()
+        if not asset_did or not wallet_id:
+            return JsonResponse(
+                {"error": "asset_did and wallet_id are required"}, status=400
+            )
+
+        user_name = AppConfig.get_instance().public_key
+        if not ledger_client.user_owns_contract(user_name, wallet_id):
+            return JsonResponse({"error": f"wallet not found: {wallet_id}"}, status=400)
+
+        try:
+            asset_info = registry_client.get_asset_by_did(asset_did)
+        except Exception as e:
+            return JsonResponse({"error": f"failed to look up asset: {e}"}, status=400)
+        metadata = (asset_info or {}).get("metadata", {}) or {}
+        token_did = metadata.get("policy_contract", "")
+        if not token_did:
+            return JsonResponse(
+                {"error": "Asset has not been exposed (no policy_contract)."},
+                status=400,
+            )
+        token_id, _ = parse_did(token_did)
+        guardian = _guardian_url_port(
+            metadata.get("guardian_url", ""), metadata.get("guardian_port", "")
+        )
+
+        def download(ctx):
+            output_path, _ = pdo_runner.use_asset(
+                wallet_id=wallet_id,
+                token_id=token_id,
+                guardian_url_port=guardian,
+                user_name=user_name,
+            )
+            ctx["output_path"] = output_path
+
+        def decrypt(ctx):
+            ctx["data"] = channel_keys.decrypt_download(user_name, ctx["output_path"])
+
+        steps = [
+            ("download", "Requesting and downloading the data", download),
+            ("decrypt", "Decrypting with your channel key", decrypt),
+        ]
+        return stream_steps(
+            steps,
+            complete=lambda ctx: {
+                "result": {"data": ctx.get("data", "")},
+                "message": "Data downloaded and decrypted.",
+            },
+        )
