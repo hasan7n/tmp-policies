@@ -26,6 +26,11 @@
     var ICONS = { running: '', done: '✓', skip: '✓', error: '✕', pending: '•' };
 
     function resetModal(title) {
+        // Close any other open modal (e.g. the form the user just submitted) so
+        // the progress modal isn't rendered behind it.
+        document.querySelectorAll('.modal-backdrop').forEach(function (m) {
+            if (m.id !== 'progress-modal') m.classList.add('hidden');
+        });
         el('progress-title').textContent = title || 'Working…';
         el('progress-steps').innerHTML = '';
         el('progress-close').style.display = 'none';

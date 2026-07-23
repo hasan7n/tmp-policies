@@ -177,7 +177,6 @@
             useForm.addEventListener('submit', function (e) {
                 e.preventDefault();
                 var payload = window.formToObject(useForm);
-                document.getElementById('use-modal').classList.add('hidden');
                 window.progress.run('/api/assets/use/stream/', payload, {
                     title: 'Using the asset…',
                     onComplete: function (term) {
