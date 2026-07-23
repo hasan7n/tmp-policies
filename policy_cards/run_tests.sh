@@ -17,7 +17,28 @@ if [[ -z "${opa}" ]]; then
 fi
 
 status=0
-for duo in gs is ds hmb gso nmds ncu rs npoa poa ps col pub irb gru mor rtn ts us npu npuncu; do
+for duo in \
+    geographical-restriction \
+    institution-specific-restriction \
+    disease-specific-research \
+    health-or-medical-or-biomedical-research \
+    genetic-studies-only \
+    no-general-methods-research \
+    non-commercial-use-only \
+    research-specific-restrictions \
+    population-origins-or-ancestry-research-prohibited \
+    population-origins-or-ancestry-research-only \
+    project-specific-restriction \
+    collaboration-required \
+    publication-required \
+    ethics-approval-required \
+    general-research-use \
+    publication-moratorium \
+    return-to-database-or-resource \
+    time-limit-on-use \
+    user-specific-restriction \
+    not-for-profit-organisation-use-only \
+    not-for-profit-non-commercial-use-only; do
     echo "== testing ${duo} =="
     if ! "$opa" test "${here}/${duo}" -v; then
         status=1

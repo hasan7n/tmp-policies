@@ -17,10 +17,10 @@ each DUO needs *in addition* to that key.
 
 | DUO             | Folder         | Additional evidence        |
 |-----------------|----------------|----------------------------|
-| DUO_0000022 GS  | [`gs/`](gs/)   | LocationCredential         |
-| DUO_0000028 IS  | [`is/`](is/)   | AffiliationCredential      |
-| DUO_0000026 US  | [`us/`](us/)   | UserPlatformCredential     |
-| DUO_0000045 NPU | [`npu/`](npu/) | LegalDesignationCredential |
+| DUO_0000022 GS  | [`geographical-restriction/`](geographical-restriction/)   | LocationCredential         |
+| DUO_0000028 IS  | [`institution-specific-restriction/`](institution-specific-restriction/)   | AffiliationCredential      |
+| DUO_0000026 US  | [`user-specific-restriction/`](user-specific-restriction/)   | UserPlatformCredential     |
+| DUO_0000045 NPU | [`not-for-profit-organisation-use-only/`](not-for-profit-organisation-use-only/) | LegalDesignationCredential |
 
 **Intended-use constraint** — a project `IntendedDataUseCredential` bound to the
 requester through `ProjectOwnershipCredential` + `TeamCredential`, plus an
@@ -28,25 +28,25 @@ requester through `ProjectOwnershipCredential` + `TeamCredential`, plus an
 
 | DUO              | Folder           | Check on the intended use                  |
 |------------------|------------------|--------------------------------------------|
-| DUO_0000007 DS   | [`ds/`](ds/)     | diseases within an allowed MONDO scope     |
-| DUO_0000006 HMB  | [`hmb/`](hmb/)   | health/medical/biomedical purpose, not POA |
-| DUO_0000016 GSO  | [`gso/`](gso/)   | genetic-studies purpose                    |
-| DUO_0000012 RS   | [`rs/`](rs/)     | purpose within an allowed research scope   |
-| DUO_0000011 POA  | [`poa/`](poa/)   | population-origins/ancestry purpose        |
-| DUO_0000015 NMDS | [`nmds/`](nmds/) | no methods-development purpose             |
-| DUO_0000046 NCU  | [`ncu/`](ncu/)   | no commercial purpose                      |
-| DUO_0000044 NPOA | [`npoa/`](npoa/) | no population-origins/ancestry purpose     |
-| DUO_0000027 PS   | [`ps/`](ps/)     | project on the owner's approved list       |
+| DUO_0000007 DS   | [`disease-specific-research/`](disease-specific-research/)     | diseases within an allowed MONDO scope     |
+| DUO_0000006 HMB  | [`health-or-medical-or-biomedical-research/`](health-or-medical-or-biomedical-research/)   | health/medical/biomedical purpose, not POA |
+| DUO_0000016 GSO  | [`genetic-studies-only/`](genetic-studies-only/)   | genetic-studies purpose                    |
+| DUO_0000012 RS   | [`research-specific-restrictions/`](research-specific-restrictions/)     | purpose within an allowed research scope   |
+| DUO_0000011 POA  | [`population-origins-or-ancestry-research-only/`](population-origins-or-ancestry-research-only/)   | population-origins/ancestry purpose        |
+| DUO_0000015 NMDS | [`no-general-methods-research/`](no-general-methods-research/) | no methods-development purpose             |
+| DUO_0000046 NCU  | [`non-commercial-use-only/`](non-commercial-use-only/)   | no commercial purpose                      |
+| DUO_0000044 NPOA | [`population-origins-or-ancestry-research-prohibited/`](population-origins-or-ancestry-research-prohibited/) | no population-origins/ancestry purpose     |
+| DUO_0000027 PS   | [`project-specific-restriction/`](project-specific-restriction/)     | project on the owner's approved list       |
 
 **Accepted-terms constraint** — an `AgreementCredential` accepting the required
 terms document, plus (for MOR/RTN/TS) a `ComputeEnvironmentCredential`:
 
 | DUO             | Folder         | Additional evidence                                   |
 |-----------------|----------------|-------------------------------------------------------|
-| DUO_0000042 GRU | [`gru/`](gru/) | —                                                     |
-| DUO_0000024 MOR | [`mor/`](mor/) | ComputeEnvironmentCredential (secure handling)        |
-| DUO_0000029 RTN | [`rtn/`](rtn/) | ComputeEnvironmentCredential (secure handling)        |
-| DUO_0000025 TS  | [`ts/`](ts/)   | ComputeEnvironmentCredential (shutdown by a deadline) |
+| DUO_0000042 GRU | [`general-research-use/`](general-research-use/) | —                                                     |
+| DUO_0000024 MOR | [`publication-moratorium/`](publication-moratorium/) | ComputeEnvironmentCredential (secure handling)        |
+| DUO_0000029 RTN | [`return-to-database-or-resource/`](return-to-database-or-resource/) | ComputeEnvironmentCredential (secure handling)        |
+| DUO_0000025 TS  | [`time-limit-on-use/`](time-limit-on-use/)   | ComputeEnvironmentCredential (shutdown by a deadline) |
 
 **Agreement-scope obligation** (`col`, `pub`) — `ProjectOwnershipCredential` +
 `AffiliationCredential` + `TeamCredential` + `ScopedAgreementCredential` +
