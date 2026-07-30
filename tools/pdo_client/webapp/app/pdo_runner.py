@@ -326,6 +326,25 @@ def list_token_trusted_issuers(token_id, user_name):
     return raw or {}
 
 
+def _find_trusted_issuer_for_type(raw_issuers, credential_type):
+    """Return the contract_id of the first trusted issuer registered for
+    ``credential_type`` in a raw trusted-issuers map (as returned by a
+    ``list_trusted_issuers`` call), or ``None`` if none is registered.
+    """
+    issuers = (
+        json.loads(raw_issuers) if isinstance(raw_issuers, str) else (raw_issuers or {})
+    )
+    return next(
+        (
+            contract_id
+            for contract_id, entries in issuers.items()
+            for entry in (entries or [])
+            if credential_type in (entry.get("credential_types") or [])
+        ),
+        None,
+    )
+
+
 # ============================================================
 # Asset use ops (consumer-side)
 # ============================================================
@@ -365,19 +384,8 @@ def ensure_public_key_credential(wallet_id, token_id, user_name, keys_dir):
         policy_issuers_raw = rego_policy_agent.list_trusted_issuers(
             state, policy_id, user_name
         )
-        policy_issuers = (
-            json.loads(policy_issuers_raw)
-            if isinstance(policy_issuers_raw, str)
-            else (policy_issuers_raw or {})
-        )
-        eka_id = next(
-            (
-                contract_id
-                for contract_id, entries in policy_issuers.items()
-                for entry in (entries or [])
-                if PUBLIC_KEY_CREDENTIAL_TYPE in (entry.get("credential_types") or [])
-            ),
-            None,
+        eka_id = _find_trusted_issuer_for_type(
+            policy_issuers_raw, PUBLIC_KEY_CREDENTIAL_TYPE
         )
         if eka_id is None:
             raise ValueError(
