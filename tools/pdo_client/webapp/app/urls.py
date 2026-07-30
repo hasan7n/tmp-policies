@@ -12,13 +12,17 @@ from .views.assets import (
     AssetUseEndpoint,
     AssetUseStreamView,
 )
-from .views.channel_keys import ChannelKeyGenerateEndpoint
 from .views.config import ConfigPageView, IdentityProvisionView, IdentitySetView
+from .views.issuers import (
+    IssuerAddVCEndpoint,
+    IssuerDetailView,
+    IssuerRegisterSigningContextEndpoint,
+    IssuerSignCredentialEndpoint,
+    IssuersListView,
+)
 from .views.wallets import (
     WalletAddVCEndpoint,
     WalletDetailView,
-    WalletRegisterIssuerEndpoint,
-    WalletSignCredentialEndpoint,
     WalletsListView,
 )
 
@@ -28,8 +32,8 @@ from .views.wallets import (
 #   * /api/... endpoints: POST-only, accept and return JSON. Used by JS
 #     for pages where multiple distinct actions are possible.
 #
-# Wallets/assets are addressed by their on-ledger contract_id. Because
-# PDO contract ids are base64 hashes (containing `/`, `+`, `=`), we
+# Wallets/assets/issuers are addressed by their on-ledger contract_id.
+# Because PDO contract ids are base64 hashes (containing `/`, `+`, `=`), we
 # carry them through URL paths under their URL-safe encoding
 # (`app.url_safe_id`) bound to the `cid_url` kwarg. Views decode it
 # back to the raw contract_id at the boundary.
@@ -64,6 +68,13 @@ urlpatterns = [
         WalletDetailView.as_view(),
         name="wallet_detail",
     ),
+    # Issuers (pages)
+    path("issuers/", IssuersListView.as_view(), name="issuers"),
+    path(
+        "issuers/<str:cid_url>/",
+        IssuerDetailView.as_view(),
+        name="issuer_detail",
+    ),
     # Config + identity (pages)
     path("config/", ConfigPageView.as_view(), name="config"),
     path("identity/set/", IdentitySetView.as_view(), name="identity_set"),
@@ -71,12 +82,6 @@ urlpatterns = [
         "identity/provision/",
         IdentityProvisionView.as_view(),
         name="identity_provision",
-    ),
-    # Channel key
-    path(
-        "api/channel-key/generate/",
-        ChannelKeyGenerateEndpoint.as_view(),
-        name="api_channel_key_generate",
     ),
     # JSON endpoints
     path("api/assets/use/", AssetUseEndpoint.as_view(), name="api_asset_use"),
@@ -101,13 +106,18 @@ urlpatterns = [
         name="api_wallet_add_vc",
     ),
     path(
-        "api/wallets/<str:cid_url>/register-issuer/",
-        WalletRegisterIssuerEndpoint.as_view(),
-        name="api_wallet_register_issuer",
+        "api/issuers/<str:cid_url>/add-vc/",
+        IssuerAddVCEndpoint.as_view(),
+        name="api_issuer_add_vc",
     ),
     path(
-        "api/wallets/<str:cid_url>/sign-credential/",
-        WalletSignCredentialEndpoint.as_view(),
-        name="api_wallet_sign_credential",
+        "api/issuers/<str:cid_url>/register-signing-context/",
+        IssuerRegisterSigningContextEndpoint.as_view(),
+        name="api_issuer_register_signing_context",
+    ),
+    path(
+        "api/issuers/<str:cid_url>/sign-credential/",
+        IssuerSignCredentialEndpoint.as_view(),
+        name="api_issuer_sign_credential",
     ),
 ]

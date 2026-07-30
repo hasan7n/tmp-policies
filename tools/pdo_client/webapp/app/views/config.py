@@ -47,7 +47,7 @@ class IdentitySetView(View):
         if not public_key:
             return redirect_with_msg("/", "public_key is required", "error")
         set_current_identity(public_key)
-        # First time we see this user, give them a wallet and a channel key.
+        # First time we see this user, give them a wallet.
         ensure_provisioned(public_key)
         # Always land on the home page after switching identity, so the view
         # reflects the newly selected user's contracts.
@@ -67,7 +67,7 @@ def _read_public_key(request):
 class IdentityProvisionView(View):
     """POST {public_key} — switch identity and provision it, streaming one NDJSON
     progress line per high-level step so the UI can show what happens behind the
-    scenes (wallet → channel key → public-key credential).
+    scenes (creating the wallet).
 
     Driven by ``provision.js``; :class:`IdentitySetView` and
     :class:`ConfigPageView` remain the no-JS fallbacks.

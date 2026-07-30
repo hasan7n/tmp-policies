@@ -6,11 +6,11 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 
 from .. import (
-    channel_keys,
     guardian_launcher,
     ledger_client,
     pdo_runner,
     registry_client,
+    session_keys,
 )
 from ..did_utils import make_did, parse_did
 from ..models import AppConfig
@@ -84,23 +84,13 @@ def _user_wallet_cards(user_name):
     """Wallet picker entries for the asset list / asset dashboard 'Use' modal.
 
     Mirrors ``views.wallets._user_wallet_ids`` but inlined to avoid a circular
-    import. Pure wallets = signature_authority contracts not registered as
-    assets.
+    import. Wallets = identity.identity contracts (a disjoint ledger family
+    from the signature_authority contracts asset identities use, so no
+    asset-id subtraction is needed here).
     """
-    sa_ids = ledger_client.list_signature_authority_ids(user_name)
-    if not sa_ids:
-        return []
-    try:
-        asset_ids = {
-            parse_did(a["did"])[0] for a in (registry_client.list_assets() or [])
-        }
-    except Exception:
-        logger.exception("Failed to fetch assets while building wallet picker")
-        asset_ids = set()
     return [
         {"contract_id": cid, "name": f"Wallet {_short_id(cid)}"}
-        for cid in sa_ids
-        if cid not in asset_ids
+        for cid in ledger_client.list_identity_ids(user_name)
     ]
 
 
@@ -192,7 +182,7 @@ class AssetSetupView(BaseView):
             return self._error(request, f"Failed to deploy guardian: {e}")
 
         try:
-            contract_id = pdo_runner.create_wallet(name, user_name)
+            contract_id = pdo_runner.create_asset_identity(name, user_name)
             did = make_did(contract_id)
 
             registry_asset = registry_client.register_asset(
@@ -510,7 +500,7 @@ class AssetExposeView(BaseView):
 # ============================================================
 class AssetUseEndpoint(JsonView):
     """POST {asset_did, wallet_id} — run the consumer download flow, decrypt the
-    downloaded data with the user's private channel key, and return ``{data}``.
+    downloaded data with the wallet's session key, and return ``{data}``.
     """
 
     def handle(self, request, data, **kwargs):
@@ -536,13 +526,23 @@ class AssetUseEndpoint(JsonView):
             metadata.get("guardian_port", ""),
         )
 
+        try:
+            pdo_runner.ensure_public_key_credential(
+                wallet_id,
+                token_contract_id,
+                user_name,
+                session_keys.keys_dir(user_name, wallet_id),
+            )
+        except ValueError as e:
+            raise ValidationError(str(e))
+
         output_path, _ = pdo_runner.use_asset(
             wallet_id=wallet_id,
             token_id=token_contract_id,
             guardian_url_port=guardian,
             user_name=user_name,
         )
-        decrypted = channel_keys.decrypt_download(user_name, output_path)
+        decrypted = session_keys.decrypt_download(user_name, wallet_id, output_path)
         return {"ok": True, "data": decrypted}
 
 
@@ -674,7 +674,7 @@ class AssetSetupStreamView(BaseView):
             )
 
         def contract(ctx):
-            ctx["contract_id"] = pdo_runner.create_wallet(name, user_name)
+            ctx["contract_id"] = pdo_runner.create_asset_identity(name, user_name)
             return {"detail": _short_id(ctx["contract_id"])}
 
         def register(ctx):
@@ -865,6 +865,14 @@ class AssetUseStreamView(BaseView):
             metadata.get("guardian_url", ""), metadata.get("guardian_port", "")
         )
 
+        def credential(ctx):
+            obtained = pdo_runner.ensure_public_key_credential(
+                wallet_id, token_id, user_name, session_keys.keys_dir(user_name, wallet_id)
+            )
+            if not obtained:
+                raise SkipStep("not required or already present")
+            return {"detail": "obtained from the policy's trusted external key authority"}
+
         def download(ctx):
             output_path, _ = pdo_runner.use_asset(
                 wallet_id=wallet_id,
@@ -875,11 +883,14 @@ class AssetUseStreamView(BaseView):
             ctx["output_path"] = output_path
 
         def decrypt(ctx):
-            ctx["data"] = channel_keys.decrypt_download(user_name, ctx["output_path"])
+            ctx["data"] = session_keys.decrypt_download(
+                user_name, wallet_id, ctx["output_path"]
+            )
 
         steps = [
+            ("credential", "Checking credential requirements", credential),
             ("download", "Requesting and downloading the data", download),
-            ("decrypt", "Decrypting with your channel key", decrypt),
+            ("decrypt", "Decrypting with your session key", decrypt),
         ]
         return stream_steps(
             steps,

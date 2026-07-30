@@ -1,9 +1,15 @@
 """PDO operations using the decentralized helpers.
 
-Wallets are signature_authority contracts. The ``identity`` python module is
-used only for ``add_vc`` / ``get_vc_list`` / ``get_vp``, which are convenience
-wrappers around contract methods that exist on signature_authority too.
-Everything else goes through the ``signature_authority`` module.
+Wallets are ``identity.identity`` contracts. Asset identities and "manual"
+issuers are ``signature_authority`` contracts (a superset: it inherits
+identity's ops and adds signing-context issuance). The op classes behind
+``add_vc`` / ``get_vc_list`` / ``get_vp`` / ``register_signing_context`` /
+``list_signing_contexts`` are literally the same across ``identity``,
+``signature_authority``, and ``external_key_authority`` (each family aliases
+the one below it), so the ``signature_authority`` decentralized module below
+is used as the one family-agnostic entry point for all of them by contract_id
+— only ``sign_credential`` is NOT reusable against an ``external_key_authority``
+contract (it's a distinct, non-aliased op there).
 
 Helpers mutate the shared state when loading contexts, so all calls run
 under a single global lock.
@@ -22,6 +28,8 @@ from django.conf import settings as cfg
 
 _ = cfg.PDO_HOME  # force settings to load (and set os.environ) before pdo.*
 
+import pdo.authority.decentralized.external_key_authority as external_key_authority
+import pdo.identity.decentralized.identity as identity_contract
 import pdo.identity.decentralized.signature_authority as signature_authority
 import pdo.rego.decentralized.rego_policy_agent as rego_policy_agent
 import pdo.rego.decentralized.rego_token as rego_token
@@ -30,6 +38,8 @@ from .pdo_state import get_state
 
 logger = logging.getLogger(__name__)
 _op_lock = threading.Lock()
+
+PUBLIC_KEY_CREDENTIAL_TYPE = "publicKeyCredential"
 
 
 def _tmp_json(data):
@@ -53,17 +63,62 @@ def _safe_unlink(path):
 
 
 # ============================================================
-# Wallet ops (signature_authority-backed)
+# Wallet ops (identity.identity-backed)
 # ============================================================
 def create_wallet(name, user_name):
-    """Create a wallet, backed by a signature_authority contract.
+    """Create a wallet, backed by a plain identity.identity contract.
+
+    Returns the contract_id.
+    """
+    state = get_state()
+    with _op_lock:
+        return identity_contract.create_identity(
+            state, user_name, description=f"wallet for {name}"
+        )
+
+
+# ============================================================
+# Identity ops shared by asset identities and issuers
+# (signature_authority-backed; see the module docstring for why this one
+# decentralized module is reused as the family-agnostic entry point)
+# ============================================================
+def create_asset_identity(name, user_name):
+    """Create the identity contract behind an asset, backed by
+    signature_authority (unlike a wallet, this is not a user-facing "wallet").
 
     Returns the contract_id.
     """
     state = get_state()
     with _op_lock:
         return signature_authority.create_signature_authority(
-            state, user_name, description=f"wallet for {name}"
+            state, user_name, description=f"asset identity for {name}"
+        )
+
+
+def create_manual_issuer(name, user_name):
+    """Create a "manual" issuer: a signature_authority contract the owner
+    registers signing contexts on and hand-signs credentials from.
+
+    Returns the contract_id.
+    """
+    state = get_state()
+    with _op_lock:
+        return signature_authority.create_signature_authority(
+            state, user_name, description=f"issuer for {name}"
+        )
+
+
+def create_external_key_authority_issuer(name, user_name):
+    """Create an external_key_authority issuer. This single call also
+    creates and trusts its backing wallet_key_authority (see
+    ``cmd_create_external_key_authority``).
+
+    Returns the contract_id.
+    """
+    state = get_state()
+    with _op_lock:
+        return external_key_authority.create_external_key_authority(
+            state, user_name, description=f"issuer for {name}"
         )
 
 
@@ -270,6 +325,69 @@ def list_token_trusted_issuers(token_id, user_name):
 # ============================================================
 # Asset use ops (consumer-side)
 # ============================================================
+def ensure_public_key_credential(wallet_id, token_id, user_name, keys_dir):
+    """Ensure the wallet holds a publicKeyCredential if the asset's policy
+    requires one.
+
+    No-op if the policy doesn't require ``publicKeyCredential`` or the wallet
+    already has one. Otherwise finds the policy's trusted external_key_authority
+    for that credential type and binds a fresh session key to the wallet
+    through it, which stores the issued credential directly in the wallet.
+
+    Returns ``True`` if a credential was obtained, ``False`` if this was a
+    no-op. Raises ``ValueError`` if the credential is required but no trusted
+    issuer is registered for it.
+    """
+    state = get_state()
+    with _op_lock:
+        issuers_raw = rego_token.list_trusted_issuers(state, token_id, user_name)
+        issuers = (
+            json.loads(issuers_raw) if isinstance(issuers_raw, str) else (issuers_raw or {})
+        )
+        if not issuers:
+            return False
+        policy_id = next(iter(issuers.keys()))
+
+        requirements = rego_policy_agent.get_requirements(state, policy_id, user_name)
+        required_types = {t for types in requirements.values() for t in types}
+        if PUBLIC_KEY_CREDENTIAL_TYPE not in required_types:
+            return False
+
+        vc_map_raw = signature_authority.get_vc_list(state, wallet_id, user_name)
+        vc_map = json.loads(vc_map_raw) if isinstance(vc_map_raw, str) else (vc_map_raw or {})
+        if PUBLIC_KEY_CREDENTIAL_TYPE in vc_map:
+            return False
+
+        policy_issuers_raw = rego_policy_agent.list_trusted_issuers(
+            state, policy_id, user_name
+        )
+        policy_issuers = (
+            json.loads(policy_issuers_raw)
+            if isinstance(policy_issuers_raw, str)
+            else (policy_issuers_raw or {})
+        )
+        eka_id = next(
+            (
+                contract_id
+                for contract_id, entries in policy_issuers.items()
+                for entry in (entries or [])
+                if PUBLIC_KEY_CREDENTIAL_TYPE in (entry.get("credential_types") or [])
+            ),
+            None,
+        )
+        if eka_id is None:
+            raise ValueError(
+                "This asset's policy requires a publicKeyCredential, but no "
+                "trusted issuer is registered for it."
+            )
+
+        external_key_authority.bind_external_key(
+            state, eka_id, wallet_id, user_name, keys_dir=keys_dir
+        )
+        time.sleep(1)
+        return True
+
+
 def use_asset(*, wallet_id, token_id, guardian_url_port, user_name, output_dir=None):
     """Run the consumer download flow against a rego_policy_agent.
 

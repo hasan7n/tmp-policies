@@ -15,6 +15,7 @@
     <div class="nav-links">
         <a href="/" {% if request.path == '/' %}class="active"{% endif %}>Assets</a>
         <a href="/wallets/" {% if '/wallets/' in request.path %}class="active"{% endif %}>Wallets</a>
+        <a href="/issuers/" {% if '/issuers/' in request.path %}class="active"{% endif %}>Issuers</a>
     </div>
 
     <div class="nav-right">
@@ -34,34 +35,9 @@
                 {% endfor %}
             </select>
         </form>
-        {% if current_identity %}
-        {% if has_channel_key %}
-        <button type="button" class="nav-identity-btn"
-                data-modal-open="channel-key-modal">View your channel key</button>
-        {% else %}
-        <button type="button" class="nav-identity-btn"
-                id="generate-channel-key-btn">Generate a channel_key</button>
-        {% endif %}
-        {% endif %}
         <a href="/config/" class="nav-settings-link" title="Settings">&#9881;</a>
     </div>
 </nav>
-
-<!-- View Channel Key Modal: shows only the public channel key. -->
-<div id="channel-key-modal" class="modal-backdrop hidden">
-    <div class="modal" style="max-width:640px">
-        <div class="modal-header">
-            <span class="modal-title">Your Channel Key</span>
-            <button type="button" class="modal-close"
-                    data-modal-close="channel-key-modal">&times;</button>
-        </div>
-        <pre class="code-block" style="white-space:pre-wrap">{{ channel_public_key_escaped }}</pre>
-        <div class="form-actions">
-            <button type="button" class="btn btn-primary"
-                    data-copy="{{ channel_public_key_escaped }}">Copy</button>
-        </div>
-    </div>
-</div>
 
 <!-- Progress modal: reused by any multi-step flow (identity provisioning, asset
      register / expose / use) to show live per-step progress. Driven by
@@ -85,7 +61,6 @@
 <script src="/static/js/modals.js"></script>
 <script src="/static/js/flash.js"></script>
 <script src="/static/js/copy.js"></script>
-<script src="/static/js/channel_key.js"></script>
 <script src="/static/js/progress.js"></script>
 <script src="/static/js/provision.js"></script>
 {% block scripts %}{% endblock %}

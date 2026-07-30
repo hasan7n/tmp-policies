@@ -46,19 +46,15 @@ def set_current_identity(public_key):
 
 # High-level provisioning steps, in order. The labels are what the UI shows
 # while the work runs behind the scenes.
-PROVISION_STEPS = (
-    ("wallet", "Creating your wallet"),
-    ("channel_key", "Generating your channel key"),
-)
+PROVISION_STEPS = (("wallet", "Creating your wallet"),)
 
 
 def provision_identity(user_name):
     """Provision a freshly selected identity, yielding one progress event per
     high-level step so a caller can surface what happens behind the scenes.
 
-    Ensures the user has a wallet and a channel key. Idempotent and best-effort:
-    each step is independent, and a step's failure is reported but never stops
-    the others.
+    Ensures the user has a wallet. Idempotent and best-effort: failure is
+    reported but never raised.
 
     Each yielded event is a dict ``{"step", "status", "label", "detail"}`` where
     ``status`` is ``start`` | ``done`` | ``skip`` | ``error``.
@@ -68,7 +64,7 @@ def provision_identity(user_name):
 
     # Imported lazily: pdo_runner pulls in the heavy pdo.* stack, and this module
     # is imported on every request (context processor).
-    from . import channel_keys, ledger_client, pdo_runner
+    from . import ledger_client, pdo_runner
 
     labels = dict(PROVISION_STEPS)
 
@@ -78,7 +74,7 @@ def provision_identity(user_name):
     # --- wallet -----------------------------------------------------------
     yield event("wallet", "start")
     try:
-        if ledger_client.list_signature_authority_ids(user_name):
+        if ledger_client.list_identity_ids(user_name):
             yield event("wallet", "skip", "already have a wallet")
         else:
             pdo_runner.create_wallet("wallet", user_name)
@@ -87,21 +83,9 @@ def provision_identity(user_name):
         logger.exception("Failed to ensure a wallet for %s", user_name)
         yield event("wallet", "error", str(e))
 
-    # --- channel key ------------------------------------------------------
-    yield event("channel_key", "start")
-    try:
-        if channel_keys.has_channel_key(user_name):
-            yield event("channel_key", "skip", "already have a channel key")
-        else:
-            channel_keys.generate(user_name)
-            yield event("channel_key", "done")
-    except Exception as e:
-        logger.exception("Failed to ensure a channel key for %s", user_name)
-        yield event("channel_key", "error", str(e))
-
 
 def ensure_provisioned(user_name):
-    """Provision a user (wallet and channel key) if they don't have them yet.
+    """Provision a user (a wallet) if they don't have one yet.
 
     Called when the identity is switched so a user is ready to use without any
     manual setup. Drains ``provision_identity`` for callers that don't surface

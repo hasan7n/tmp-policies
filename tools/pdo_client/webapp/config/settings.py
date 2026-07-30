@@ -80,9 +80,10 @@ DOWNLOAD_OUTPUT_DIR = os.path.join(SCRATCH_DIR, "downloads")
 F_SERVICE_GROUPS_DB_FILE = f"{SCRATCH_DIR}/groups_db"
 F_SERVICE_DB_FILE = f"{SCRATCH_DIR}/service_db"
 
-# Per-user channel keys (RSA key pairs used to receive downloaded data). Each
-# user's keys live under CHANNEL_KEYS_DIR/<user_name>/.
-CHANNEL_KEYS_DIR = os.path.join(SCRATCH_DIR, "channel_keys")
+# Per-(user, wallet) session keys (RSA key pairs an external_key_authority
+# binds to a wallet to receive downloaded data). Each wallet's keys live
+# under SESSION_KEYS_DIR/<user_name>/<wallet_id>/.
+SESSION_KEYS_DIR = os.path.join(SCRATCH_DIR, "session_keys")
 
 # Guardian deployment: registering an asset also starts a guardian for it,
 # published on GUARDIAN_PORT at F_SERVICE_HOST (the service host the webapp is

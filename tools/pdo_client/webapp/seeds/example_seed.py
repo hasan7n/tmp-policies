@@ -4,8 +4,9 @@ Runs a small end-to-end rego-policy flow before the dev server starts, so the
 webapp comes up with wallets, credentials, and an exposed asset already in
 place. Three users take part:
 
-    vc_issuer   creates a wallet and a "poc" signing context, then issues three
-                verifiable credentials (public key / location / affiliation).
+    vc_issuer   creates a manual issuer and a "poc" signing context, then
+                issues three verifiable credentials (public key / location /
+                affiliation).
     data_user   creates a wallet and stores those three credentials.
     data_owner  registers an asset ("data1") and exposes it behind a
                 rego_policy_agent provisioned with the GS + IS subpolicies.
@@ -33,7 +34,9 @@ running.
 import time
 from typing import TYPE_CHECKING
 
-from app import channel_keys, registry_client
+from pdo.authority.session_key import generate_rsa_keypair, load_public_pem
+
+from app import registry_client, session_keys
 from app.did_utils import make_did
 from app.models import AppConfig
 
@@ -99,10 +102,10 @@ def issue_vc(issuer_wallet, subject_wallet, vc_type, claims):
 
 
 # -----------------------------------------------------------------
-# vc_issuer: wallet + "poc" signing context
+# vc_issuer: manual issuer (signature_authority) + "poc" signing context
 # -----------------------------------------------------------------
-issuer_wallet = runner.create_wallet("issuer wallet", VC_ISSUER)
-print(f"[vc_issuer] wallet: {issuer_wallet}")
+issuer_wallet = runner.create_manual_issuer("issuer wallet", VC_ISSUER)
+print(f"[vc_issuer] issuer: {issuer_wallet}")
 time.sleep(1)
 runner.register_signing_context(
     issuer_wallet,
@@ -119,12 +122,16 @@ user_wallet = runner.create_wallet("user wallet", DATA_USER)
 print(f"[data_user] wallet: {user_wallet}")
 time.sleep(1)
 
-# data_user generates a channel key. Its public key is embedded in the
-# public-key credential below, so the guardian encrypts downloaded data to it
-# and data_user can decrypt with the matching private key (kept under the
-# scratch channel_keys dir). This mirrors clicking "Generate a channel_key".
-user_channel_public_key = channel_keys.generate(DATA_USER)
-print("[data_user] generated channel key")
+# data_user generates a session-style RSA key pair by hand (mirroring what an
+# external_key_authority would normally generate and bind), written to the
+# same place app.session_keys looks when decrypting a download for this
+# wallet. Its public key is embedded in the public-key credential below, so
+# the guardian encrypts downloaded data to it and data_user can decrypt with
+# the matching private key.
+user_keys_dir = session_keys.keys_dir(DATA_USER, user_wallet)
+generate_rsa_keypair(user_keys_dir)
+user_session_public_key = load_public_pem(user_keys_dir)
+print("[data_user] generated session key")
 
 # -----------------------------------------------------------------
 # vc_issuer -> data_user: public-key, location, and affiliation VCs
@@ -134,7 +141,7 @@ signed_vcs = {
         issuer_wallet,
         user_wallet,
         "publicKeyCredential",
-        {"key": user_channel_public_key},
+        {"key": user_session_public_key},
     ),
     "LocationCredential": issue_vc(
         issuer_wallet,
@@ -167,7 +174,7 @@ for vc_type, vc in signed_vcs.items():
 # -----------------------------------------------------------------
 # data_owner: register asset "data1"
 # -----------------------------------------------------------------
-asset_contract_id = runner.create_wallet("data1", DATA_OWNER)
+asset_contract_id = runner.create_asset_identity("data1", DATA_OWNER)
 asset_did = make_did(asset_contract_id)
 registry_asset = registry_client.register_asset(
     name="data1",

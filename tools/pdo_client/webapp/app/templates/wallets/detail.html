@@ -27,46 +27,6 @@
 
     <div class="card">
         <div class="card-header" style="margin-bottom:0.75rem">
-            <h2 style="margin:0">Signing Contexts</h2>
-            <button type="button" class="btn btn-sm btn-primary"
-                    data-modal-open="register-issuer-modal">+ Register Signing Context</button>
-        </div>
-
-        {% if signing_contexts_error %}
-        <div class="alert alert-error">{{ signing_contexts_error }}</div>
-        {% elif signing_contexts %}
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Path</th><th>DID</th><th>Description</th><th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for c in signing_contexts %}
-                <tr>
-                    <td><strong>{{ c.path|join:"/" }}</strong></td>
-                    <td>
-                        <span class="did-display">{{ wallet.did }}#{{ c.path|join:"/" }}</span>
-                        <button type="button" class="btn btn-sm"
-                                data-copy="{{ wallet.did }}#{{ c.path|join:'/' }}">Copy</button>
-                    </td>
-                    <td>{{ c.description }}</td>
-                    <td>
-                        <button type="button" class="btn btn-sm"
-                                data-action="open-sign"
-                                data-path="{{ c.path|join:'/' }}">Sign Credential</button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p style="color:#999">No signing contexts registered yet.</p>
-        {% endif %}
-    </div>
-
-    <div class="card">
-        <div class="card-header" style="margin-bottom:0.75rem">
             <h2 style="margin:0">Stored Credentials</h2>
             <button type="button" class="btn btn-sm btn-primary"
                     data-modal-open="add-vc-modal">+ Add Credential</button>
@@ -93,31 +53,6 @@
 
 </div>
 
-<div id="register-issuer-modal" class="modal-backdrop hidden">
-    <form class="modal" style="max-width:440px" id="register-issuer-form">
-        <div class="modal-header">
-            <span class="modal-title">Register Signing Context</span>
-            <button type="button" class="modal-close"
-                    data-modal-close="register-issuer-modal">&times;</button>
-        </div>
-        <div class="form-group">
-            <label for="issuer-name-input">Name</label>
-            <input type="text" id="issuer-name-input" name="name"
-                   placeholder="e.g. university" required>
-        </div>
-        <div class="form-group">
-            <label for="issuer-desc-input">Description</label>
-            <input type="text" id="issuer-desc-input" name="description"
-                   placeholder="e.g. University membership signing context">
-        </div>
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Register</button>
-            <button type="button" class="btn"
-                    data-modal-close="register-issuer-modal">Cancel</button>
-        </div>
-    </form>
-</div>
-
 <div id="add-vc-modal" class="modal-backdrop hidden">
     <form class="modal" id="add-vc-form">
         <div class="modal-header">
@@ -133,50 +68,6 @@
             <button type="submit" class="btn btn-primary">Add Credential</button>
             <button type="button" class="btn"
                     data-modal-close="add-vc-modal">Cancel</button>
-        </div>
-    </form>
-</div>
-
-<div id="sign-credential-modal" class="modal-backdrop hidden">
-    <form class="modal" id="sign-credential-form">
-        <div class="modal-header">
-            <span class="modal-title">Sign Credential — <span id="sign-issuer-name"></span></span>
-            <button type="button" class="modal-close"
-                    data-modal-close="sign-credential-modal">&times;</button>
-        </div>
-        <input type="hidden" name="signing_context" id="sign-signing-context">
-
-        {% if templates_error %}
-        <div class="alert alert-error">{{ templates_error }}</div>
-        {% endif %}
-
-        <div class="form-group">
-            <label for="sign-template-select">Credential Template</label>
-            <select id="sign-template-select" name="template_type" required>
-                {% for t in templates %}
-                <option value="{{ t.template_type }}"
-                        data-schema="{{ t.claims_schema_json }}">{{ t.template_type }}</option>
-                {% empty %}
-                <option value="">No templates available</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label for="sign-subject-did">Subject DID</label>
-            <input type="text" id="sign-subject-did" name="subject_did" required
-                   placeholder="did:pdo:abc123...">
-        </div>
-
-        <div class="form-group">
-            <label for="sign-claims-input">Claims</label>
-            <textarea id="sign-claims-input" name="claims" class="mono" rows="5"></textarea>
-        </div>
-
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Sign &amp; Issue</button>
-            <button type="button" class="btn"
-                    data-modal-close="sign-credential-modal">Cancel</button>
         </div>
     </form>
 </div>

@@ -33,7 +33,9 @@ _op_lock = threading.Lock()
 # which passes ``contract_class`` as the family). The rego_policy_agent reuses
 # the policy_agent create command, and rego_token is minted as a token_object,
 # so those are the classes they register under.
+FAMILY_IDENTITY = "identity"
 FAMILY_SIGNATURE_AUTHORITY = "signature_authority"
+FAMILY_EXTERNAL_KEY_AUTHORITY = "external_key_authority"
 FAMILY_POLICY_AGENT = "policy_agent"
 
 
@@ -76,17 +78,42 @@ def get_user_contracts(user_name):
     ]
 
 
+def list_identity_ids(user_name):
+    """Contract IDs owned by ``user_name`` whose family is identity.
+
+    These are the user's wallets.
+    """
+    return [
+        e["contract_id"]
+        for e in get_user_contracts(user_name)
+        if e["contract_family"] == FAMILY_IDENTITY
+    ]
+
+
 def list_signature_authority_ids(user_name):
     """Contract IDs owned by ``user_name`` whose family is signature_authority.
 
-    These are the candidates for "wallets" and "asset identity contracts".
-    Whether a given id is a pure wallet vs the identity contract behind an
-    asset is decided by the asset registry (does this DID appear there?).
+    These are the candidates for "manual issuers" and "asset identity
+    contracts". Whether a given id is a manual issuer vs the identity contract
+    behind an asset is decided by the asset registry (does this DID appear
+    there?).
     """
     return [
         e["contract_id"]
         for e in get_user_contracts(user_name)
         if e["contract_family"] == FAMILY_SIGNATURE_AUTHORITY
+    ]
+
+
+def list_external_key_authority_ids(user_name):
+    """Contract IDs owned by ``user_name`` whose family is external_key_authority.
+
+    These are the user's "external key authority" issuers.
+    """
+    return [
+        e["contract_id"]
+        for e in get_user_contracts(user_name)
+        if e["contract_family"] == FAMILY_EXTERNAL_KEY_AUTHORITY
     ]
 
 
