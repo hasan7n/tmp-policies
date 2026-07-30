@@ -113,13 +113,17 @@ def create_external_key_authority_issuer(name, user_name):
     creates and trusts its backing wallet_key_authority (see
     ``cmd_create_external_key_authority``).
 
+    Unlike ``create_signature_authority``, ``cmd_create_external_key_authority``
+    takes no ``description`` argument — the eka's (and its wka's) description
+    comes fixed from their context templates, so ``name`` is accepted here only
+    for call-site symmetry with the other ``create_*`` functions and isn't
+    otherwise used.
+
     Returns the contract_id.
     """
     state = get_state()
     with _op_lock:
-        return external_key_authority.create_external_key_authority(
-            state, user_name, description=f"issuer for {name}"
-        )
+        return external_key_authority.create_external_key_authority(state, user_name)
 
 
 def register_signing_context(
