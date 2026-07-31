@@ -8,6 +8,7 @@ from django.shortcuts import redirect, render
 from .. import (
     guardian_launcher,
     ledger_client,
+    naming,
     pdo_runner,
     registry_client,
     session_keys,
@@ -88,10 +89,9 @@ def _user_wallet_cards(user_name):
     from the signature_authority contracts asset identities use, so no
     asset-id subtraction is needed here).
     """
-    return [
-        {"contract_id": cid, "name": f"Wallet {_short_id(cid)}"}
-        for cid in ledger_client.list_identity_ids(user_name)
-    ]
+    ids = ledger_client.list_identity_ids(user_name)
+    names = naming.get_names([make_did(cid) for cid in ids])
+    return [{"contract_id": cid, "name": names[make_did(cid)]} for cid in ids]
 
 
 def _require_user_asset(user_name, contract_id):

@@ -266,6 +266,8 @@ textarea.mono { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0
     border: 1px solid var(--color-border);
     border-radius: 6px;
     background: #fafafa;
+    max-height: 240px;
+    overflow-y: auto;
 }
 .checkbox-item { display: flex; align-items: center; gap: 0.5rem; font-weight: 400; margin: 0; }
 .checkbox-item input[type="checkbox"] { width: auto; margin: 0; }

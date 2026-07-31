@@ -3,7 +3,7 @@ import logging
 from django.http import Http404
 from django.shortcuts import render
 
-from .. import ledger_client, pdo_runner
+from .. import ledger_client, naming, pdo_runner
 from ..did_utils import make_did
 from ..models import AppConfig
 from ..url_safe_id import decode_cid, encode_cid
@@ -18,11 +18,6 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 
-def _short_id(contract_id, n=12):
-    """Display name for a wallet: short prefix of its contract_id."""
-    return contract_id[:n]
-
-
 def _user_wallet_ids(user_name):
     """List the user's wallet contract ids (identity.identity contracts)."""
     return ledger_client.list_identity_ids(user_name)
@@ -34,12 +29,13 @@ def _require_user_wallet(user_name, contract_id):
         raise Http404(f"wallet not found: {contract_id}")
 
 
-def _wallet_card(contract_id):
+def _wallet_card(contract_id, name=None):
+    did = make_did(contract_id)
     return {
         "contract_id": contract_id,
         "cid_url": encode_cid(contract_id),
-        "name": f"Wallet {_short_id(contract_id)}",
-        "did": make_did(contract_id),
+        "name": name if name is not None else naming.get_name(did),
+        "did": did,
     }
 
 
@@ -51,7 +47,9 @@ class WalletsListView(BaseView):
 
     def get(self, request):
         user_name = AppConfig.get_instance().public_key
-        wallets = [_wallet_card(cid) for cid in _user_wallet_ids(user_name)]
+        ids = _user_wallet_ids(user_name)
+        names = naming.get_names([make_did(cid) for cid in ids])
+        wallets = [_wallet_card(cid, names[make_did(cid)]) for cid in ids]
         return render(request, "wallets/list.html", {"wallets": wallets})
 
     def post(self, request):
@@ -61,13 +59,14 @@ class WalletsListView(BaseView):
 
         user_name = AppConfig.get_instance().public_key
         try:
-            pdo_runner.create_wallet(name, user_name)
+            contract_id = pdo_runner.create_wallet(name, user_name)
         except Exception as e:
             logger.exception("Failed to create wallet")
             return redirect_with_msg(
                 "/wallets/", f"Failed to create wallet: {e}", "error"
             )
 
+        naming.set_name(make_did(contract_id), name)
         return redirect_with_msg("/wallets/", f'Wallet "{name}" created.', "success")
 
 
@@ -115,3 +114,16 @@ class WalletAddVCEndpoint(JsonView):
 
         pdo_runner.wallet_add_vc(contract_id, vc, user_name)
         return {"ok": True, "message": "Credential added."}
+
+
+class WalletUpdateNameEndpoint(JsonView):
+    """POST {name} — set the local display name for this wallet's DID."""
+
+    def handle(self, request, data, cid_url):
+        contract_id = decode_cid(cid_url)
+        user_name = AppConfig.get_instance().public_key
+        _require_user_wallet(user_name, contract_id)
+        name = require(data, "name")
+
+        naming.set_name(make_did(contract_id), name)
+        return {"ok": True, "message": "Name updated.", "name": name}

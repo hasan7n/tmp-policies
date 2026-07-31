@@ -9,13 +9,17 @@
         <div>
             <h1 class="page-title">{{ wallet.name }}</h1>
         </div>
-        <a href="/wallets/" class="btn">Back to Wallets</a>
+        <div class="card-actions">
+            <button type="button" class="btn btn-sm" data-modal-open="update-name-modal">Edit Name</button>
+            <a href="/wallets/" class="btn">Back to Wallets</a>
+        </div>
     </div>
 
     <div class="card">
         <h2>Wallet Info</h2>
         <table class="data-table" style="margin-top:0.75rem">
             <tbody>
+                <tr><td><strong>Name</strong></td><td>{{ wallet.name }}</td></tr>
                 <tr><td><strong>DID</strong></td>
                     <td>
                         <span class="did-display">{{ wallet.did }}</span>
@@ -51,6 +55,26 @@
         {% endif %}
     </div>
 
+</div>
+
+<div id="update-name-modal" class="modal-backdrop hidden">
+    <form class="modal" style="max-width:400px" id="update-name-form">
+        <div class="modal-header">
+            <span class="modal-title">Edit Name</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="update-name-modal">&times;</button>
+        </div>
+        <div class="form-group">
+            <label for="update-name-input">Name</label>
+            <input type="text" id="update-name-input" name="name"
+                   value="{{ wallet.name }}" required>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn"
+                    data-modal-close="update-name-modal">Cancel</button>
+        </div>
+    </form>
 </div>
 
 <div id="add-vc-modal" class="modal-backdrop hidden">

@@ -24,6 +24,11 @@ SECRET_KEY = "django-insecure-client-app-key-change-in-production"
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
+# The single signing context every manual issuer is set up with at creation
+# time. The webapp no longer exposes signing-context management in the UI —
+# credentials are always signed from this one context.
+POC_SIGNING_CONTEXT_NAME = "poc"
+
 # Since Django 4.0 the CSRF check validates the request Origin against this list
 # whenever the request arrives over HTTPS. A plain-HTTP localhost run skips the
 # check, but GitHub Codespaces forwards the port through an HTTPS tunnel, so

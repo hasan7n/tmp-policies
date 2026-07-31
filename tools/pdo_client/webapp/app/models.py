@@ -21,3 +21,17 @@ class AppConfig(models.Model):
 
     def __str__(self):
         return f"AppConfig(pk={self.pk})"
+
+
+class ContractName(models.Model):
+    """Local (DID -> name) mapping for wallets and issuers.
+
+    Purely a local UI convenience: the ledger's contract list has no notion
+    of a display name, so the webapp remembers one here, keyed by DID.
+    """
+
+    did = models.CharField(max_length=512, unique=True)
+    name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.name} ({self.did})"

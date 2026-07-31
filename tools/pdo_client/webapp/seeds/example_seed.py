@@ -4,9 +4,9 @@ Runs a small end-to-end rego-policy flow before the dev server starts, so the
 webapp comes up with wallets, credentials, and an exposed asset already in
 place. Three users take part:
 
-    vc_issuer   creates a manual issuer and a "poc" signing context, then
-                issues three verifiable credentials (public key / location /
-                affiliation).
+    vc_issuer   creates a manual issuer (which is set up with the "poc"
+                signing context automatically), then issues three verifiable
+                credentials (public key / location / affiliation).
     data_user   creates a wallet and stores those three credentials.
     data_owner  registers an asset ("data1") and exposes it behind a
                 rego_policy_agent provisioned with the GS + IS subpolicies.
@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING
 
 from pdo.authority.session_key import generate_rsa_keypair, load_public_pem
 
-from app import registry_client, session_keys
+from app import naming, registry_client, session_keys
 from app.did_utils import make_did
 from app.models import AppConfig
 
@@ -50,7 +50,7 @@ VC_ISSUER = "vc_issuer"
 DATA_OWNER = "data_owner"
 DATA_USER = "data_user"
 
-SIGNING_CONTEXT = "poc"
+SIGNING_CONTEXT = settings.POC_SIGNING_CONTEXT_NAME
 
 GUARDIAN_HOST = "192.168.1.223"
 GUARDIAN_PORT = "7900"
@@ -102,23 +102,19 @@ def issue_vc(issuer_wallet, subject_wallet, vc_type, claims):
 
 
 # -----------------------------------------------------------------
-# vc_issuer: manual issuer (signature_authority) + "poc" signing context
+# vc_issuer: manual issuer (signature_authority), set up with the "poc"
+# signing context automatically by create_manual_issuer.
 # -----------------------------------------------------------------
 issuer_wallet = runner.create_manual_issuer("issuer wallet", VC_ISSUER)
+naming.set_name(make_did(issuer_wallet), "issuer wallet")
 print(f"[vc_issuer] issuer: {issuer_wallet}")
 time.sleep(1)
-runner.register_signing_context(
-    issuer_wallet,
-    VC_ISSUER,
-    path=[SIGNING_CONTEXT],
-    description="poc issuer",
-)
-print(f'[vc_issuer] registered signing context "{SIGNING_CONTEXT}"')
 
 # -----------------------------------------------------------------
 # data_user: wallet
 # -----------------------------------------------------------------
 user_wallet = runner.create_wallet("user wallet", DATA_USER)
+naming.set_name(make_did(user_wallet), "user wallet")
 print(f"[data_user] wallet: {user_wallet}")
 time.sleep(1)
 

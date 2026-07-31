@@ -1,10 +1,11 @@
 import json
 import logging
 
+from django.conf import settings
 from django.http import Http404
 from django.shortcuts import render
 
-from .. import ledger_client, pdo_runner, registry_client
+from .. import ledger_client, naming, pdo_runner, registry_client
 from ..did_utils import make_did, parse_did
 from ..models import AppConfig
 from ..url_safe_id import decode_cid, encode_cid
@@ -19,11 +20,6 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 ISSUER_TYPES = ("manual", "external_key_authority")
-
-
-def _short_id(contract_id, n=12):
-    """Display name for an issuer: short prefix of its contract_id."""
-    return contract_id[:n]
 
 
 def _user_manual_issuer_ids(user_name):
@@ -48,12 +44,13 @@ def _user_manual_issuer_ids(user_name):
     return [cid for cid in sa_ids if cid not in asset_ids]
 
 
-def _issuer_card(contract_id, kind):
+def _issuer_card(contract_id, kind, name=None):
+    did = make_did(contract_id)
     return {
         "contract_id": contract_id,
         "cid_url": encode_cid(contract_id),
-        "name": f"Issuer {_short_id(contract_id)}",
-        "did": make_did(contract_id),
+        "name": name if name is not None else naming.get_name(did),
+        "did": did,
         "kind": kind,
         "kind_label": (
             "External Key Authority" if kind == "external_key_authority" else "Manual"
@@ -62,10 +59,15 @@ def _issuer_card(contract_id, kind):
 
 
 def _issuer_cards(user_name):
-    cards = [_issuer_card(cid, "manual") for cid in _user_manual_issuer_ids(user_name)]
+    manual_ids = _user_manual_issuer_ids(user_name)
+    eka_ids = ledger_client.list_external_key_authority_ids(user_name)
+    names = naming.get_names([make_did(cid) for cid in manual_ids + eka_ids])
+    cards = [
+        _issuer_card(cid, "manual", names[make_did(cid)]) for cid in manual_ids
+    ]
     cards += [
-        _issuer_card(cid, "external_key_authority")
-        for cid in ledger_client.list_external_key_authority_ids(user_name)
+        _issuer_card(cid, "external_key_authority", names[make_did(cid)])
+        for cid in eka_ids
     ]
     return cards
 
@@ -111,15 +113,18 @@ class IssuersListView(BaseView):
         user_name = AppConfig.get_instance().public_key
         try:
             if issuer_type == "manual":
-                pdo_runner.create_manual_issuer(name, user_name)
+                contract_id = pdo_runner.create_manual_issuer(name, user_name)
             else:
-                pdo_runner.create_external_key_authority_issuer(name, user_name)
+                contract_id = pdo_runner.create_external_key_authority_issuer(
+                    name, user_name
+                )
         except Exception as e:
             logger.exception("Failed to create issuer")
             return redirect_with_msg(
                 "/issuers/", f"Failed to create issuer: {e}", "error"
             )
 
+        naming.set_name(make_did(contract_id), name)
         return redirect_with_msg("/issuers/", f'Issuer "{name}" created.', "success")
 
 
@@ -133,15 +138,6 @@ class IssuerDetailView(BaseView):
         kind = _require_user_issuer(user_name, contract_id)
         issuer = _issuer_card(contract_id, kind)
 
-        signing_contexts, signing_contexts_error = [], None
-        try:
-            signing_contexts = pdo_runner.wallet_list_signing_contexts(
-                contract_id, user_name
-            )
-        except Exception as e:
-            logger.exception("Failed to list signing contexts")
-            signing_contexts_error = str(e)
-
         vcs, vcs_error = {}, None
         try:
             vcs = pdo_runner.wallet_list_vcs(contract_id, user_name)
@@ -149,9 +145,10 @@ class IssuerDetailView(BaseView):
             logger.exception("Failed to list issuer VCs")
             vcs_error = str(e)
 
-        # Only manual issuers can sign arbitrary credentials from a signing
-        # context; an external_key_authority's sign_credential does something
-        # else entirely (binds a session key to a wallet).
+        # Only manual issuers can sign arbitrary credentials from their
+        # (fixed, single) signing context; an external_key_authority's
+        # sign_credential does something else entirely (binds a session key
+        # to a wallet).
         templates, templates_error = [], None
         if kind == "manual":
             try:
@@ -167,8 +164,6 @@ class IssuerDetailView(BaseView):
             "issuers/detail.html",
             {
                 "issuer": issuer,
-                "signing_contexts": signing_contexts,
-                "signing_contexts_error": signing_contexts_error,
                 "vcs": vcs,
                 "vcs_error": vcs_error,
                 "templates": templates,
@@ -195,42 +190,25 @@ class IssuerAddVCEndpoint(JsonView):
         return {"ok": True, "message": "Credential added."}
 
 
-class IssuerRegisterSigningContextEndpoint(JsonView):
-    """POST {name, description?, extensible?} — register a signing context."""
+class IssuerUpdateNameEndpoint(JsonView):
+    """POST {name} — set the local display name for this issuer's DID."""
 
     def handle(self, request, data, cid_url):
         contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_issuer(user_name, contract_id)
         name = require(data, "name")
-        description = (data.get("description") or "").strip() or f"issuer {name}"
-        extensible = bool(data.get("extensible", False))
 
-        pdo_runner.register_signing_context(
-            contract_id,
-            user_name,
-            path=[name],
-            description=description,
-            extensible=extensible,
-        )
-
-        return {
-            "ok": True,
-            "message": f'Signing context "{name}" registered.',
-            "issuer": {
-                "did": make_did(contract_id, name),
-                "path": [name],
-                "description": description,
-                "extensible": extensible,
-            },
-        }
+        naming.set_name(make_did(contract_id), name)
+        return {"ok": True, "message": "Name updated.", "name": name}
 
 
 class IssuerSignCredentialEndpoint(JsonView):
-    """POST {signing_context, template_type, subject_did, claims} — sign a VC and
-    store it directly in the subject's wallet. Manual issuers only: an
-    external_key_authority's sign_credential is a different operation
-    (binding a session key to a wallet), not arbitrary VC issuance.
+    """POST {template_type, subject_did, claims} — sign a VC from the issuer's
+    fixed "poc" signing context and store it directly in the subject's
+    wallet. Manual issuers only: an external_key_authority's sign_credential
+    is a different operation (binding a session key to a wallet), not
+    arbitrary VC issuance.
     """
 
     def handle(self, request, data, cid_url):
@@ -240,13 +218,12 @@ class IssuerSignCredentialEndpoint(JsonView):
         if kind != "manual":
             raise ValidationError("Only manual issuers can sign credentials.")
 
-        signing_context, template_type, subject_did = require(
-            data, "signing_context", "template_type", "subject_did"
-        )
+        template_type, subject_did = require(data, "template_type", "subject_did")
         claims = data.get("claims") or {}
         if not isinstance(claims, dict):
             raise ValidationError("'claims' must be a JSON object")
 
+        signing_context = settings.POC_SIGNING_CONTEXT_NAME
         subject_contract_id, _ = parse_did(subject_did)
         credential = {
             "type": [template_type],

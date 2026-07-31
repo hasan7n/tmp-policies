@@ -100,7 +100,7 @@
                 var did = document.createElement('input');
                 did.type = 'text';
                 did.className = 'ti-did';
-                did.placeholder = 'did:pdo:<contract_id>#<signing_context>';
+                did.placeholder = 'did:pdo:<contract_id>';
                 did.style.flex = '1';
                 var del = document.createElement('button');
                 del.type = 'button';

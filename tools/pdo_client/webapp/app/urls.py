@@ -16,14 +16,15 @@ from .views.config import ConfigPageView, IdentityProvisionView, IdentitySetView
 from .views.issuers import (
     IssuerAddVCEndpoint,
     IssuerDetailView,
-    IssuerRegisterSigningContextEndpoint,
     IssuerSignCredentialEndpoint,
     IssuersListView,
+    IssuerUpdateNameEndpoint,
 )
 from .views.wallets import (
     WalletAddVCEndpoint,
     WalletDetailView,
     WalletsListView,
+    WalletUpdateNameEndpoint,
 )
 
 # Two URL families:
@@ -106,14 +107,19 @@ urlpatterns = [
         name="api_wallet_add_vc",
     ),
     path(
+        "api/wallets/<str:cid_url>/update-name/",
+        WalletUpdateNameEndpoint.as_view(),
+        name="api_wallet_update_name",
+    ),
+    path(
         "api/issuers/<str:cid_url>/add-vc/",
         IssuerAddVCEndpoint.as_view(),
         name="api_issuer_add_vc",
     ),
     path(
-        "api/issuers/<str:cid_url>/register-signing-context/",
-        IssuerRegisterSigningContextEndpoint.as_view(),
-        name="api_issuer_register_signing_context",
+        "api/issuers/<str:cid_url>/update-name/",
+        IssuerUpdateNameEndpoint.as_view(),
+        name="api_issuer_update_name",
     ),
     path(
         "api/issuers/<str:cid_url>/sign-credential/",

@@ -8,6 +8,8 @@ import os
 
 from django.conf import settings
 
+from . import naming
+from .did_utils import make_did
 from .models import AppConfig
 
 logger = logging.getLogger(__name__)
@@ -77,7 +79,8 @@ def provision_identity(user_name):
         if ledger_client.list_identity_ids(user_name):
             yield event("wallet", "skip", "already have a wallet")
         else:
-            pdo_runner.create_wallet("wallet", user_name)
+            contract_id = pdo_runner.create_wallet("wallet", user_name)
+            naming.set_name(make_did(contract_id), "wallet")
             yield event("wallet", "done")
     except Exception as e:
         logger.exception("Failed to ensure a wallet for %s", user_name)

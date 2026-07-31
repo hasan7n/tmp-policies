@@ -68,13 +68,13 @@ def _safe_unlink(path):
 def create_wallet(name, user_name):
     """Create a wallet, backed by a plain identity.identity contract.
 
+    ``name`` is used verbatim as the contract's on-chain description.
+
     Returns the contract_id.
     """
     state = get_state()
     with _op_lock:
-        return identity_contract.create_identity(
-            state, user_name, description=f"wallet for {name}"
-        )
+        return identity_contract.create_identity(state, user_name, description=name)
 
 
 # ============================================================
@@ -97,15 +97,30 @@ def create_asset_identity(name, user_name):
 
 def create_manual_issuer(name, user_name):
     """Create a "manual" issuer: a signature_authority contract the owner
-    registers signing contexts on and hand-signs credentials from.
+    hand-signs credentials from.
+
+    ``name`` is used verbatim as the contract's on-chain description. The
+    issuer is set up with a single fixed signing context
+    (``cfg.POC_SIGNING_CONTEXT_NAME``) used for all credentials it signs —
+    the webapp doesn't expose signing-context management in the UI.
 
     Returns the contract_id.
     """
     state = get_state()
     with _op_lock:
-        return signature_authority.create_signature_authority(
-            state, user_name, description=f"issuer for {name}"
+        contract_id = signature_authority.create_signature_authority(
+            state, user_name, description=name
         )
+        time.sleep(1)
+        signature_authority.register_signing_context(
+            state,
+            contract_id,
+            user_name,
+            path=[cfg.POC_SIGNING_CONTEXT_NAME],
+            description=name,
+            extensible=False,
+        )
+    return contract_id
 
 
 def create_external_key_authority_issuer(name, user_name):
@@ -124,39 +139,6 @@ def create_external_key_authority_issuer(name, user_name):
     state = get_state()
     with _op_lock:
         return external_key_authority.create_external_key_authority(state, user_name)
-
-
-def register_signing_context(
-    contract_id, user_name, *, path, description, extensible=False
-):
-    """Register a new signing context (issuer) on a wallet's signature_authority."""
-    state = get_state()
-    with _op_lock:
-        signature_authority.register_signing_context(
-            state,
-            contract_id,
-            user_name,
-            path=path,
-            description=description,
-            extensible=extensible,
-        )
-
-
-def wallet_list_signing_contexts(contract_id, user_name, path=None):
-    """Return the wallet's registered signing contexts as a list.
-
-    Each entry is ``{"path": [..], "description": "..", "extensible": bool}``.
-    """
-    state = get_state()
-    with _op_lock:
-        raw = signature_authority.list_signing_contexts(
-            state, contract_id, user_name, path=path or [],
-        )
-    if isinstance(raw, str):
-        parsed = json.loads(raw) if raw else {}
-    else:
-        parsed = raw or {}
-    return parsed.get("contexts", []) if isinstance(parsed, dict) else []
 
 
 def wallet_add_vc(contract_id, vc_dict, user_name):

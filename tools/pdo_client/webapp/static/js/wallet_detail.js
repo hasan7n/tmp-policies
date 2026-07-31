@@ -1,4 +1,4 @@
-// Wallet dashboard: a single JSON-POST action (add VC). On success we
+// Wallet dashboard: JSON-POST actions (update name, add VC). On success we
 // reload the page.
 
 (function () {
@@ -7,6 +7,21 @@
         if (!container) return;
         // URL-safe contract id (server-side encoding, see app/url_safe_id.py).
         var cidUrl = container.dataset.walletCidUrl;
+
+        // ---- Update name ----
+        var updateNameForm = document.getElementById('update-name-form');
+        updateNameForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var payload = window.formToObject(updateNameForm);
+            try {
+                var res = await window.api.post(
+                    '/api/wallets/' + cidUrl + '/update-name/', payload);
+                window.flash(res.message || 'Name updated.', 'success');
+                window.location.reload();
+            } catch (err) {
+                window.flash(err.message, 'error');
+            }
+        });
 
         // ---- Add VC ----
         var addVcForm = document.getElementById('add-vc-form');
