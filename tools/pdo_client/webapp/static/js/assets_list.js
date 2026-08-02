@@ -1,6 +1,6 @@
 // Assets page: clicking "Use" opens a modal pre-filled with the asset's
 // DID + name. Submit streams the download flow through window.progress and
-// renders the decrypted result inline in #use-result-card.
+// shows the decrypted result in its own popup (#use-result-modal).
 
 (function () {
     function init() {
@@ -21,11 +21,13 @@
             window.progress.run('/api/assets/use/stream/', payload, {
                 title: 'Using the asset…',
                 onComplete: function (term) {
-                    var card = document.getElementById('use-result-card');
-                    var out = document.getElementById('use-result-output');
-                    out.textContent = (term.result || {}).data || '';
-                    card.style.display = '';
-                    card.scrollIntoView({ behavior: 'smooth' });
+                    // The progress modal has done its job once the flow
+                    // completes — dismiss it instead of leaving it sitting
+                    // on screen, and show the decrypted data in its own modal.
+                    document.getElementById('progress-modal').classList.add('hidden');
+                    document.getElementById('use-result-output').textContent =
+                        (term.result || {}).data || '';
+                    document.getElementById('use-result-modal').classList.remove('hidden');
                 },
             });
         });

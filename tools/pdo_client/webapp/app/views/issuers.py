@@ -45,12 +45,21 @@ def _user_manual_issuer_ids(user_name):
 
 
 def _issuer_card(contract_id, kind, name=None):
-    did = make_did(contract_id)
+    base_did = make_did(contract_id)
+    # A manual issuer always signs from its one fixed context, so the DID
+    # shown/copied for it is the one credentials are actually issued under —
+    # callers never need to know a "signing context" exists at all. An
+    # external_key_authority has no such context, so its DID is the bare one.
+    display_did = (
+        make_did(contract_id, settings.POC_SIGNING_CONTEXT_NAME)
+        if kind == "manual"
+        else base_did
+    )
     return {
         "contract_id": contract_id,
         "cid_url": encode_cid(contract_id),
-        "name": name if name is not None else naming.get_name(did),
-        "did": did,
+        "name": name if name is not None else naming.get_name(base_did),
+        "did": display_did,
         "kind": kind,
         "kind_label": (
             "External Key Authority" if kind == "external_key_authority" else "Manual"

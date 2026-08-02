@@ -39,11 +39,6 @@
         {% endif %}
     </div>
 
-    <div class="card" id="use-result-card" style="display:none; margin-bottom:1rem">
-        <h2>Decrypted Data</h2>
-        <pre class="code-block" id="use-result-output"></pre>
-    </div>
-
     {% if has_policy %}
 
     <div class="card">
@@ -127,6 +122,21 @@
                     data-modal-close="use-modal">Cancel</button>
         </div>
     </form>
+</div>
+
+<div id="use-result-modal" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:640px">
+        <div class="modal-header">
+            <span class="modal-title">Decrypted Data</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="use-result-modal">&times;</button>
+        </div>
+        <pre class="code-block" id="use-result-output"></pre>
+        <div class="form-actions">
+            <button type="button" class="btn"
+                    data-modal-close="use-result-modal">Close</button>
+        </div>
+    </div>
 </div>
 
 <div id="register-policy-issuer-modal" class="modal-backdrop hidden">

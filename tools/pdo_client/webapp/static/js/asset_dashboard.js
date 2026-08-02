@@ -171,7 +171,7 @@
             });
         }
 
-        // ---- Use: stream the download flow, render result inline ----
+        // ---- Use: stream the download flow, show the result in its own popup ----
         var useForm = document.getElementById('use-form');
         if (useForm) {
             useForm.addEventListener('submit', function (e) {
@@ -180,11 +180,13 @@
                 window.progress.run('/api/assets/use/stream/', payload, {
                     title: 'Using the asset…',
                     onComplete: function (term) {
-                        var card = document.getElementById('use-result-card');
-                        var out = document.getElementById('use-result-output');
-                        out.textContent = (term.result || {}).data || '';
-                        card.style.display = '';
-                        card.scrollIntoView({ behavior: 'smooth' });
+                        // The progress modal has done its job once the flow
+                        // completes — dismiss it instead of leaving it sitting
+                        // on screen, and show the decrypted data in its own modal.
+                        document.getElementById('progress-modal').classList.add('hidden');
+                        document.getElementById('use-result-output').textContent =
+                            (term.result || {}).data || '';
+                        document.getElementById('use-result-modal').classList.remove('hidden');
                     },
                 });
             });
