@@ -23,10 +23,9 @@ In this tutorial the owner attaches **two rules** to the dataset, and **both** m
 
 ### What you'll do, end to end
 
-1. **The user** already has a wallet (the app creates it automatically the first time you switch to a user). Think of the wallet as the container that will hold verifiable credentials for the user.
-2. **The issuer** creates two **issuer objects**: one hand-signs two credentials for the user — a credential claiming the user is in a certain location (US), and one claiming they belong to a certain institution (did:example:university) — and the other doesn't sign anything up front, but will automatically issue the user a `publicKeyCredential` for a fresh session key later, the moment the user actually requests the data, so the data can be sent back to them securely. **Important**: the signed credentials alone don't unlock access to the dataset. The policy object protecting the dataset will unlock access to the dataset only if the credentials contain suitable claims AND if the credentials are signed (i.e. vouched by) an issuer object trusted by this policy object.
-3. **The owner** publishes the dataset — starts a **guardian** to hold the data file, attaches the two rules, and declares that it trusts both issuer objects the issuer created (one for the location/affiliation credentials, one for the session key).
-4. **The user** requests the data file. Along the way, the app automatically obtains a session key through the trusted issuer object set up for it. The rules are then checked automatically; because the user qualifies, the file comes back encrypted for their session key and is decrypted for them on screen.
+1. **The issuer** creates two **issuer objects**. The first issuer object hand-signs two credentials for the data user — a credential claiming the user is in a certain location (US), and one claiming they belong to a certain institution (did:example:university). The second issuer object is an automatic issuer object, it will automatically issue the data user a `publicKeyCredential`, the moment the user actually requests the data, so the data can be sent back to them securely. The issuance depends on cryptographic evidence that binds a session key of a user to their wallet, hence it can be automatic. **Important**: the signed credentials alone don't unlock access to the dataset. The policy object protecting the dataset will unlock access to the dataset only if the credentials contain suitable claims AND if the credentials are signed (i.e. vouched by) an issuer object trusted by this policy object.
+2. **The data owner** publishes the dataset — starts a **guardian** to hold the data file, attaches the two rules, and declares that it trusts both issuer objects the issuer created (one for the location/affiliation credentials, one for the publicKeyCredential (session key)).
+3. **The data user** requests the data file. Along the way, the app automatically obtains a session key through the trusted issuer object set up for it. The rules are then checked automatically; because the user qualifies, the file comes back encrypted for their session key and is decrypted for them on screen.
 
 Everything below is just these steps, in detail.
 
@@ -47,11 +46,11 @@ Everything runs against a single client identity at a time. You "become" each ro
 ### A few words you'll meet
 
 - **Wallet** — your personal container for credentials; owners, issuers, and users each have one automatically. It has a unique id (a **DID**) like `did:pdo:…`.
-- **Issuer object** — something you create explicitly (on the **Issuers** page, via **+ Create Issuer**) when you need to vouch for people or hand out session keys. There are two kinds:
-  - **Manual** — hand-signs arbitrary credentials.
+- **Issuer object** — something you create explicitly (on the **Issuers** page, via **+ Create Issuer**) when you need to vouch for people or hand out session keys (i.e., when you play the role of a VC issuer). There are two kinds:
+  - **Manual** — hand-signs arbitrary credentials when you manually click the signing button.
   - **Session-key issuer object** (labeled **Session Key** where you pick it in the app) — doesn't sign credentials by hand. Once a policy trusts it for `publicKeyCredential`, the app calls on it automatically at download time to issue the requester a fresh session key and a `publicKeyCredential` for it, so they can securely receive data.
 - **Credential** — a signed statement about someone (e.g. "this person is in the US").
-- **Session key** — an RSA key pair the app generates automatically for the user's wallet, via a trusted session-key issuer object, the first time it's needed for a download. Data is encrypted to the **public** half; only the matching **private** half (kept locally) can open it.
+- **Session key** — an RSA key pair the app generates automatically for the user, via a trusted session-key issuer object, the first time it's needed for a download. Data is encrypted to the **public** half; only the matching **private** half (kept locally) can open it.
 - **Guardian** — a service that holds the actual data file and hands it out (encrypted) only once a request has been approved.
 - **Policy** — the owner's rules, enforced automatically. When a user asks for the data, the policy checks their credentials and, if they qualify, approves download.
 
@@ -73,7 +72,7 @@ When it's ready, open the forwarded **port 8000** (the **Ports** tab) to reach t
 
 ## Part 1 — Data user: grab your wallet DID
 
-Switching to a user automatically gives them a **wallet**. We start with the user because the issuer (Part 2) needs the user's **wallet DID** (who the credentials are about) before it can issue anything for them.
+We start with the user because the issuer (Part 2) needs the user's **wallet DID** (who the credentials are about) before it can issue anything for them.
 
 > **🔁 Switch identity to `data_user`.**
 
@@ -84,7 +83,7 @@ Switching to a user automatically gives them a **wallet**. We start with the use
 
 > 📋 **Keep this as `USER_DID` in your notes.** The issuer uses it as the *Subject DID* of every credential it signs for the user.
 
-*What's happening:* the **wallet** is the user's identity on the policy engine and the place their credentials will live. You can rename it any time from this page with **Edit Name**.
+*What's happening:* the **wallet** is the user's identity on the policy engine and the place their credentials will live.
 
 ---
 
@@ -100,9 +99,9 @@ You'll create two separate issuer objects here: a **manual** one, which signs tw
 2. **Name:** e.g. `credential issuer`. **Issuer Type:** **Manual**. → **Create**.
 3. Open it and click **Copy** next to its **DID**.
 
-> 📋 **Keep this as `ISSUER_DID`.** You'll use it both to identify this issuer object and, in Part 3.2, to tell the owner to trust it.
+> 📋 **Keep this as `ISSUER_DID` in your notes.** You'll use it in Part 3.2, to tell the data owner to trust it.
 
-*What's happening:* the issuer's own **wallet** — as we discussed before — can be used as a container to store credentials. An **issuer object**, on the other hand, holds signing keys so its owner can issue credentials by signing them: anything it signs can be traced back to it and checked for authenticity.
+*What's happening:* A **wallet** — as we discussed before — can be used as a container to store credentials. An **issuer object**, on the other hand, holds signing keys so its owner can issue credentials by signing them: anything it signs can be traced back to it and checked for authenticity.
 
 ### 2.2 Create the session-key issuer object
 
@@ -112,11 +111,11 @@ You'll create two separate issuer objects here: a **manual** one, which signs tw
 
 > 📋 **Keep this as `BINDING_DID`** in your notes.
 
-*What's happening:* unlike the manual issuer object, this one has no "Sign Credential" button — it doesn't hand-sign anything. Once the owner trusts it for `publicKeyCredential` (Part 3.2), the app calls on it by itself the moment `data_user` requests the data (Part 4): it issues the user a fresh session key and a `publicKeyCredential` for it automatically, so the data can be sent back to them securely. There's nothing more to do with it right now.
+*What's happening:* unlike the manual issuer object, this one has no "Sign Credential" button — it doesn't hand-sign anything. Once the owner trusts it for `publicKeyCredential` (Part 3.2), the app calls on it by itself the moment any `data_user` requests the data (Part 4): it issues the user a fresh session key and a `publicKeyCredential` for it automatically, so the data can be sent back to them securely. There's nothing more to do with it right now.
 
 ### 2.3 Issue the **LocationCredential**
 
-1. On the manual issuer object's page (`ISSUER_DID` from 2.1) click **Sign Credential**.
+1. On the manual issuer object's page (from 2.1) click **Sign Credential**.
 2. Fill the modal:
    - **Credential Template:** `LocationCredential`
    - **Subject DID:** The `USER_DID` that you kept in your notes (from step 1.1)
@@ -135,7 +134,7 @@ You'll create two separate issuer objects here: a **manual** one, which signs tw
 
 3. Click **Sign & Issue** — the credential is signed and stored in the data user's wallet automatically.
 
-*What's happening:* this attests the subject's country is **US** — which must be in the owner's allowed-country list for the geographic policy (GS) to pass.
+*What's happening:* this attests the subject's country is **US**. You, as a VC issuer, signed a verifiable statement saying that `data_user`'s (which is identified by their DID) location is in the US.
 
 ### 2.4 Issue the **AffiliationCredential**
 
@@ -154,9 +153,9 @@ You'll create two separate issuer objects here: a **manual** one, which signs tw
 
 3. **Sign & Issue** — stored in the user's wallet automatically.
 
-*What's happening:* this attests the subject belongs to `did:example:university` — which must be in the owner's allowed-institution list for the institution policy (IS) to pass.
+*What's happening:* this attests the subject belongs to `did:example:university`. You, as a VC issuer, signed a verifiable statement saying that `data_user` (which is identified by their DID) is a member of `did:example:university`.
 
-Both credentials are now in `data_user`'s wallet. (Switch to `data_user` and open your wallet if you want to see them under **Stored Credentials**.) The third credential the policy needs — `publicKeyCredential` — isn't issued yet; it's obtained automatically in Part 4, once the owner has trusted the session-key issuer object from 2.2.
+Both credentials are now in `data_user`'s wallet. (Switch to `data_user` and open your wallet if you want to see them under **Stored Credentials**.)
 
 **Important**: the signed credentials alone don't unlock access to the dataset. The policy object protecting the dataset will unlock access to the dataset only if the credentials contain suitable claims AND if the credentials are signed (i.e. vouched by) an issuer object trusted by this policy object. You will, acting as the data owner, setup the policy object in the next step.
 
@@ -178,12 +177,12 @@ For the tutorial's sake, the dataset is a single small file. **It is already cre
 2. **Name:** `data1`. **Data Path:** `/tmp/asset_data.txt` → **Register Asset**.
 3. Registration takes a few seconds — the app is also starting a **guardian** for the data and waiting for it to come up.
 
-*What's happening:* registering the asset also starts a **guardian** that serves `/tmp/asset_data.txt` (encrypting each response to the requester's session key). Open `data1` and you'll see *"Your asset is behind the guardian running on http://‹host›:‹port›."* The asset still needs a policy before anyone can use it — that's next.
+*What's happening:* registering the asset also starts a **guardian** that serves `/tmp/asset_data.txt`. Open `data1` and you'll see *"Your asset is behind the guardian running on http://‹host›:‹port›."* The asset still needs a policy before anyone can use it — that's next.
 
 ### 3.2 Expose the asset behind the policy
 
 1. Still on `data1`, click **Expose** → the **Expose Asset** modal opens.
-2. Under **Policies**, check **GS** and **IS**. (Use **View** to read what each does.)
+2. Under **Policies**, check **Geographic-restriction** and **Institution-specific-restriction**. (Use **View** to read policy card.)
 3. The **Policy Data** box auto-fills with the merged schema. Replace it with real values:
 
    ```json
@@ -198,7 +197,7 @@ For the tutorial's sake, the dataset is a single small file. **It is already cre
    - **Second box:** paste `BINDING_DID` from step 2.2 into the DID field, and check **`publicKeyCredential`**.
 5. Click **Create Policy & Expose**.
 
-*What's happening:* this attaches the **policy** to the asset — the two rules plus the allowed values you entered — and records **which issuer objects it trusts, and for which credential types**. The geographic rule asks for a location in an allowed country **plus** the user's session key; the institution rule asks for membership in an allowed institution **plus** the session key — both about the **same person** — and every such credential must be signed by a trusted issuer object. Without trusting `ISSUER_DID` for the location/affiliation credentials and `BINDING_DID` for the session-key credential, the user's credentials would be present but rejected as coming from an unknown source (or missing entirely).
+*What's happening:* this attaches the **policy** to the asset — the two rules plus the allowed values you entered — and records **which issuer objects it trusts, and for which credential types**. The geographic rule asks for a location in an allowed country **plus** the user's session key; the institution rule asks for membership in an allowed institution **plus** the session key — both about the **same person** — and every such credential must be signed by a trusted issuer object. Without trusting `ISSUER_DID` for the location/affiliation credentials and `BINDING_DID` for the session-key credential, the user's credentials would be present but rejected as coming from an unknown source (or missing entirely). Also, if you put different allowed values (e.g., removed `US` and used some other country), the policy will also result in a denial, since the `data_user` in this tutorial is given a credential claiming they are in the `US`.
 
 The asset is now fully published: data behind a guardian, gated by a policy that trusts both issuer objects.
 
@@ -220,7 +219,7 @@ Finally, the user requests the data.
 
 *What's happening* (the whole handshake, end to end):
 
-1. The app checks whether the policy requires a `publicKeyCredential` and whether the wallet already has one. It doesn't yet, so the app asks the trusted session-key issuer object (`BINDING_DID`) for one — it generates a fresh session key and issues the `publicKeyCredential` automatically, with no extra step from you.
+1. The app checks whether the policy requires a `publicKeyCredential` and whether the `data_user` wallet already has one. It doesn't yet, so the app asks the trusted session-key issuer object (`BINDING_DID`) for one — it generates a fresh session key and issues the `publicKeyCredential` automatically, with no extra step from you.
 2. The app gathers the user's credentials (session key, location, affiliation) into a single request.
 3. The **policy** checks that each credential is signed by a trusted issuer object and that both rules pass — and since the same person satisfies both, it **approves** the request and issues a capability package containing the user's session key.
 4. That capability package goes to the **guardian**, which encrypts the file to the user's session key and returns it.
@@ -250,11 +249,3 @@ data_user  ◄── decrypt with private session key ──────  encryp
 The owner never saw the user's credentials by hand, the guardian never had to judge the rules itself, and the data only ever left the guardian encrypted to a key only the compliant user holds.
 
 ---
-
-## Troubleshooting
-
-- **Use button is disabled** — the asset isn't behind a guardian. The guardian is started while you register the asset (Part 3.1); if it failed to come up, registration would have reported an error — re-register the asset.
-- **Download fails with "no trusted issuer registered" for `publicKeyCredential`** — the policy has no session-key issuer object to ask for a session key. Make sure `BINDING_DID` from Part 2.2 was registered as a trusted issuer for `publicKeyCredential` on the policy (Part 3.2); without it, the app can't issue a session key at download time.
-- **Download fails / decrypts to garbage** — this normally means the trusted session-key issuer object changed or was re-created after a session key was already issued. Re-run **Use** — the app reuses an existing `publicKeyCredential` if the wallet already has one, so if it's stale, remove it (re-issue a fresh one by clearing the wallet's stored credential, or use a fresh wallet) and try again.
-- **Policy denies the download** — check that `LocationCredential.country` and `AffiliationCredential.isMemberOf` exactly match the owner's `allowedCountries` and `allowedInstitutions`, and that both issuer objects from Part 2 are trusted for the right credential types (Part 3.2): the manual one (`ISSUER_DID`) for `LocationCredential`/`AffiliationCredential`, and the session-key one (`BINDING_DID`) for `publicKeyCredential`.
-- **Guardian unreachable** — the guardian is started when you register the asset; if downloads fail, check that it's running and see the guardian deploy log.
