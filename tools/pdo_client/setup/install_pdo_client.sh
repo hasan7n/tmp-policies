@@ -13,9 +13,12 @@ source ${PDO_SOURCE_ROOT}/build/common-config.sh
 # the fresh one, and pip's dependency resolver picks an older installed
 # version, causing spurious version-mismatch failures for anything that
 # depends on pdo-client. Clear them out so only the build below remains.
-SITE_PACKAGES=$(${PDO_INSTALL_ROOT}/bin/python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')
-rm -rf ${SITE_PACKAGES}/pdo_client-*-py*.egg-info ${SITE_PACKAGES}/pdo_client-*-py*-nspkg.pth
-rm -rf ${SITE_PACKAGES}/pdo_common_library-*-py*.egg-info ${SITE_PACKAGES}/pdo_common_library-*-py*-nspkg.pth
+
+if [ -f ${PDO_INSTALL_ROOT}/bin/python ]; then
+    SITE_PACKAGES=$(${PDO_INSTALL_ROOT}/bin/python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')
+    rm -rf ${SITE_PACKAGES}/pdo_client-*-py*.egg-info ${SITE_PACKAGES}/pdo_client-*-py*-nspkg.pth
+    rm -rf ${SITE_PACKAGES}/pdo_common_library-*-py*.egg-info ${SITE_PACKAGES}/pdo_common_library-*-py*-nspkg.pth
+fi
 
 make -C ${PDO_SOURCE_ROOT}/build client
 ${PDO_INSTALL_ROOT}/bin/pip install jupyterlab papermill ipywidgets jupytext

@@ -1,6 +1,6 @@
 set -e
 
-BRANCH=20de3ed2bc644ca88c13914708199447f3e69b05
+BRANCH=13815b6e9ca9ee2734c4e29a675d6ae8af0dbeca
 
 bash asset_registry/build.sh \
     --image mlcommons/pdo_toy_asset_registry:latest
@@ -12,7 +12,7 @@ bash pdo_client/build.sh \
     --image mlcommons/pdo_base_client:latest \
     --repository https://github.com/hasan7n/pdo-contracts \
     --branch $BRANCH \
-    --families "exchange-contract identity-contract rego-contract"
+    --families "exchange-contract identity-contract authority-contract rego-contract"
 
 bash guardian/build.sh \
     --image mlcommons/toy_guardian:latest \

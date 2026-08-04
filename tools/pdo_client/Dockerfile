@@ -23,7 +23,7 @@ WORKDIR /
 # steps and activate_env.sh (sourced both at build time and at runtime by the
 # runners), so it stays in the image. The runtime scripts are copied last
 # (below) so editing them does not invalidate these cached build layers.
-COPY setup/ /setup/
+COPY setup/install_system_deps.sh /setup/
 
 RUN bash /setup/install_system_deps.sh
 
@@ -31,9 +31,10 @@ RUN bash /setup/install_system_deps.sh
 # 1.95.0). wasm32-wasip1 is Rust's renamed wasm32-wasi target; its objects link
 # against the wasi-sdk-27 clang output at the contract link step.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-        | sh -s -- -y --default-toolchain 1.95.0 --profile minimal && \
+    | sh -s -- -y --default-toolchain 1.95.0 --profile minimal && \
     rustup target add wasm32-wasip1
 
+COPY setup/ /setup/
 RUN bash /setup/clone_contracts.sh --repository "${REPOSITORY}" --branch "${BRANCH}"
 RUN bash /setup/install_pdo_client.sh
 RUN bash /setup/install_contracts.sh --families "${CONTRACT_FAMILIES}"
