@@ -1,5 +1,6 @@
 site_name: Policy Fabric
 site_description: Policy Fabric — decoupled AI governance reference implementation
+site_url: https://hasan7n.github.io/tmp-policies/
 docs_dir: docs
 
 nav:
