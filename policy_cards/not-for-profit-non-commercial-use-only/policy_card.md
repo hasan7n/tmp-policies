@@ -13,7 +13,7 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 - **description:** Grant access only when the requester's organization has a
   not-for-profit legal form and the project's intended use declares no commercial
   purpose.
-- **author:** Policy Fabric reference implementation
+- **author:** MLCommons
 - **contact:** —
 
 ## 2  Scope & Target
@@ -27,7 +27,7 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 
 | Version | Date       | Author                        | Status   | Summary of change                                      |
 |---------|------------|-------------------------------|----------|--------------------------------------------------------|
-| 1.0.0   | 2026-07-15 | Policy Fabric reference impl. | released | Initial policy card authored from the NPUNCU policy.   |
+| 1.0.0   | 2026-07-15 | MLCommons                     | released | Initial policy card authored from the NPUNCU policy.   |
 
 ## 4  Summary & Intent
 
@@ -115,6 +115,8 @@ returns the granted operation of section 8.
 ## 10  Legal & Disclaimers
 
 Reference-implementation status: this card and its Rego policy are a reference
-implementation of the DUO_0000018 (NPUNCU) data-use permission, provided as-is. The
-card governs the download decision only; it makes no representation about
-downstream handling of the asset once delivered.
+implementation provided as-is. You are responsible for verifying its accuracy and
+fitness for your use case before relying on it — it is not a certified or legally
+reviewed compliance control. Do not use this card or policy to protect sensitive
+data (e.g., health, medical, genetic, or other legally regulated personal data)
+without independent legal and security review.

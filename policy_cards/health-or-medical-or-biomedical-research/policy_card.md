@@ -14,7 +14,7 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
   permitted health, medical, or biomedical purpose and not a prohibited
   population-origins or ancestry purpose, and the requester is bound to that
   project as a member of the owning PI's team.
-- **author:** Policy Fabric reference implementation
+- **author:** MLCommons
 - **contact:** —
 
 ## 2  Scope & Target
@@ -28,7 +28,7 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 
 | Version | Date       | Author                        | Status   | Summary of change                                      |
 |---------|------------|-------------------------------|----------|--------------------------------------------------------|
-| 1.0.0   | 2026-07-15 | Policy Fabric reference impl. | released | Initial policy card authored from the HMB policy.      |
+| 1.0.0   | 2026-07-15 | MLCommons                     | released | Initial policy card authored from the HMB policy.      |
 
 ## 4  Summary & Intent
 
@@ -125,6 +125,8 @@ granted operation of section 8.
 ## 10  Legal & Disclaimers
 
 Reference-implementation status: this card and its Rego policy are a reference
-implementation of the DUO_0000006 (HMB) data-use constraint, provided as-is. The
-card governs the download decision only; it makes no representation about
-downstream handling of the asset once delivered.
+implementation provided as-is. You are responsible for verifying its accuracy and
+fitness for your use case before relying on it — it is not a certified or legally
+reviewed compliance control. Do not use this card or policy to protect sensitive
+data (e.g., health, medical, genetic, or other legally regulated personal data)
+without independent legal and security review.
