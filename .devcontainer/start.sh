@@ -57,9 +57,10 @@ cat <<EOF
 ============================================================
  PDO WebUI is starting on port 8000.
  Open the forwarded URL for port 8000 (see the "Ports" tab),
- then follow pdo_client/webapp/TUTORIAL.md.
+ then follow the tutorial.
 
  Webapp logs:   /tmp/pdo_webapp.log
  Guardian logs: $REPO/pdo_client/pdo_scratch/guardian_requests/guardian_deploy.log
+ Data file:     /tmp/asset_data.txt
 ============================================================
 EOF

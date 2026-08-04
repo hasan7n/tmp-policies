@@ -79,8 +79,8 @@ def provision_identity(user_name):
         if ledger_client.list_identity_ids(user_name):
             yield event("wallet", "skip", "already have a wallet")
         else:
-            contract_id = pdo_runner.create_wallet("wallet", user_name)
-            naming.set_name(make_did(contract_id), "wallet")
+            contract_id = pdo_runner.create_wallet(f"{user_name}_wallet", user_name)
+            naming.set_name(make_did(contract_id), f"{user_name}_wallet")
             yield event("wallet", "done")
     except Exception as e:
         logger.exception("Failed to ensure a wallet for %s", user_name)
