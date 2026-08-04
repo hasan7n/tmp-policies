@@ -49,7 +49,6 @@ theme:
     - search.share
     - content.code.annotate
     - content.code.copy
-    - toc.integrate
 
 markdown_extensions:
   - pymdownx.highlight:
