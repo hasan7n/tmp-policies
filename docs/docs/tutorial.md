@@ -231,11 +231,14 @@ Finally, the user requests the data.
 
 ```text
 manual issuer object       ──signs──►   2 credentials (location · affiliation)
-                                                │
+                                        │
 session-key issuer object  ──issues──►  publicKeyCredential (session key)   (at download time)
-                                                │ stored in
-                                                ▼
-data_user's wallet  ──presents──►  Policy (geographic + institution rules)
+                                        │ stored in
+                                        ▼
+                                        data_user's wallet
+                                        │ presents
+                                        ▼
+                                        Policy (geographic + institution rules)
                                         │ trusts both issuer objects
                                         │ checks the rules
                                         ▼
