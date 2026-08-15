@@ -1,9 +1,10 @@
 {
     "name": "PDO Policy-Gated Data Sharing",
-    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
-    "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:2": {}
-    },
+    // The universal image already ships docker-in-docker, so the container is
+    // created straight from the image and Codespaces skips the build step that
+    // installing a feature would otherwise require. It is also the image
+    // Codespaces caches on its hosts, so there is usually nothing to download.
+    "image": "mcr.microsoft.com/devcontainers/universal:2-linux",
     "hostRequirements": {
         "cpus": 4,
         "memory": "8gb",
