@@ -6,13 +6,37 @@
 #
 # It does NOT run the demo seed — the tutorial creates everything by hand.
 
-set -euo pipefail
+set -eEuo pipefail
 
 REPO="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 # The docker_*.sh orchestration scripts below invoke their per-service helpers by
 # relative path, so they have to run from the tools/ directory that holds them.
 TOOLS="$REPO/tools"
 cd "$TOOLS"
+
+# Where the Docker daemon keeps its images, and roughly the room the stack's
+# images need there.
+DOCKER_ROOT=/var/lib/docker
+[ -d "$DOCKER_ROOT" ] || DOCKER_ROOT=/
+REQUIRED_GB=14
+
+# Report a failure and stop, but leave the codespace created: a non-zero exit
+# from the postStartCommand aborts container creation altogether and hands the
+# user a bare recovery container, with none of this workspace to debug from.
+abort() {
+    cat >&2 <<EOF
+
+============================================================
+ STARTUP FAILED: $*
+
+$(df -h "$DOCKER_ROOT" | sed 's/^/ /')
+
+ Re-run once the cause is fixed:  bash .devcontainer/start.sh
+============================================================
+EOF
+    exit 0
+}
+trap 'abort "command failed: $BASH_COMMAND"' ERR
 
 # Poll a command until it succeeds, giving up after a deadline so a service that
 # never comes up fails the startup instead of hanging it forever.
@@ -38,11 +62,18 @@ fi
 echo "==> Waiting for the Docker daemon"
 wait_for "the Docker daemon" 300 docker info
 
+# Filling the disk partway through a pull reports only "no space left on device"
+# against an unnamed layer, so measure the room the images need before starting.
+available_gb=$(df -BG --output=avail "$DOCKER_ROOT" | tail -n 1 | tr -dc '0-9')
+if [ "$available_gb" -lt "$REQUIRED_GB" ]; then
+    abort "only ${available_gb}GB free under $DOCKER_ROOT, and the images need about ${REQUIRED_GB}GB. Reclaim space with 'docker system prune -a', or recreate the codespace on a machine type with a larger disk."
+fi
+
 # Pull the images up front so the timed waits in the start scripts below are
-# meaningful (otherwise the first `docker run` would also be pulling). The pulls
-# are independent of each other, so run them concurrently.
+# meaningful (otherwise the first `docker run` would also be pulling). One image
+# at a time: concurrent pulls keep every compressed download and every unpacked
+# layer on disk simultaneously, which needs far more room than the images do.
 echo "==> Pulling images (first run only; this can take a few minutes)"
-PULL_PIDS=()
 for img in \
     mlcommons/pdo_ledger:latest \
     mlcommons/pdo_services:latest \
@@ -50,11 +81,8 @@ for img in \
     mlcommons/pdo_toy_asset_registry:latest \
     mlcommons/pdo_toy_template_registry:latest \
     mlcommons/toy_guardian:latest ; do
-    docker pull --quiet "$img" >/dev/null &
-    PULL_PIDS+=("$!")
-done
-for pid in "${PULL_PIDS[@]}"; do
-    wait "$pid"
+    echo "    $img"
+    docker pull --quiet "$img" >/dev/null || abort "could not pull $img"
 done
 
 echo "==> Generating user keys"
