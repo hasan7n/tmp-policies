@@ -14,11 +14,13 @@ REPO="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 TOOLS="$REPO/tools"
 cd "$TOOLS"
 
-# Where the Docker daemon keeps its images, and roughly the room the stack's
-# images need there.
+# Where the Docker daemon keeps its images, and roughly the room they need
+# there: about 8GB unpacked — they share most of their layers, so well under the
+# sum of the sizes `docker images` lists for them — plus headroom for the
+# concurrent pulls below, which hold their compressed downloads at the same time.
 DOCKER_ROOT=/var/lib/docker
 [ -d "$DOCKER_ROOT" ] || DOCKER_ROOT=/
-REQUIRED_GB=14
+REQUIRED_GB=12
 
 # Report a failure and stop, but leave the codespace created: a non-zero exit
 # from the postStartCommand aborts container creation altogether and hands the
@@ -70,10 +72,11 @@ if [ "$available_gb" -lt "$REQUIRED_GB" ]; then
 fi
 
 # Pull the images up front so the timed waits in the start scripts below are
-# meaningful (otherwise the first `docker run` would also be pulling). One image
-# at a time: concurrent pulls keep every compressed download and every unpacked
-# layer on disk simultaneously, which needs far more room than the images do.
+# meaningful (otherwise the first `docker run` would also be pulling). The pulls
+# are independent of each other, so run them concurrently.
 echo "==> Pulling images (first run only; this can take a few minutes)"
+PULL_PIDS=()
+PULL_IMAGES=()
 for img in \
     mlcommons/pdo_ledger:latest \
     mlcommons/pdo_services:latest \
@@ -81,9 +84,17 @@ for img in \
     mlcommons/pdo_toy_asset_registry:latest \
     mlcommons/pdo_toy_template_registry:latest \
     mlcommons/toy_guardian:latest ; do
-    echo "    $img"
-    docker pull --quiet "$img" >/dev/null || abort "could not pull $img"
+    docker pull --quiet "$img" >/dev/null &
+    PULL_PIDS+=("$!")
+    PULL_IMAGES+=("$img")
 done
+# Wait on every pull before reporting, so one failure names its own image rather
+# than surfacing as an unattributed layer error from whichever pull hit it.
+PULL_FAILED=""
+for i in "${!PULL_PIDS[@]}"; do
+    wait "${PULL_PIDS[$i]}" || PULL_FAILED="$PULL_FAILED ${PULL_IMAGES[$i]}"
+done
+[ -z "$PULL_FAILED" ] || abort "could not pull:$PULL_FAILED"
 
 echo "==> Generating user keys"
 bash docker_generate_user_keys.sh
