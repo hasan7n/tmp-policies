@@ -41,19 +41,17 @@ Everything runs against a single client identity at a time. This means you chang
 
 > **🔁 "Switch identity" callout** — Whenever you see this, use the **Identity dropdown at the top-right of the navbar** and pick the username. The page reloads as that identity and returns you to the home page.
 
-> [!NOTE]
-> Useful terminologies:
->
-> - **Wallet** — your personal container for credentials; owners, issuers, and users each have one automatically. It has a unique id (a **DID**) like `did:pdo:…`.
-> - **Issuer object** — something you create explicitly (on the **Issuers** page, via **+ Create Issuer**) when you need to vouch for people or hand out session keys (i.e., when you play the role of a VC issuer). There are two kinds:
-> - **Manual** — hand-signs arbitrary credentials when you manually click the signing button.
-> - **Session-key issuer object** (labeled **Session Key** where you pick it in the app) — doesn't sign credentials by hand. Once a policy trusts it for `publicKeyCredential`, the app calls on it automatically at download time to issue the requester a fresh session key and a `publicKeyCredential` for it, so they can securely receive data.
-> - **Credential** — a signed statement about someone (e.g. "this person is in the US").
-> - **Session key** — an RSA key pair the app generates automatically for the user, via a trusted session-key issuer object, the first time it's needed for a download. Data is encrypted to the **public** half; only the matching **private** half (kept locally) can open it.
-> - **Guardian** — a service that holds the actual data file and hands it out (encrypted) only once a request has been approved.
-> - **Policy** — the owner's policies, enforced automatically. When a user asks for the data, the policy checks their credentials and, if they qualify, approves download.
-> - **Ledger** - #TODO
->
+!!! note "Useful terminologies"
+
+    - **Wallet** — your personal container for credentials; owners, issuers, and users each have one automatically. It has a unique id (a **DID**) like `did:pdo:…`.
+    - **Issuer object** — something you create explicitly (on the **Issuers** page, via **+ Create Issuer**) when you need to vouch for people or hand out session keys (i.e., when you play the role of a VC issuer). There are two kinds:
+        - **Manual** — hand-signs arbitrary credentials when you manually click the signing button.
+        - **Session-key issuer object** (labeled **Session Key** where you pick it in the app) — doesn't sign credentials by hand. Once a policy trusts it for `publicKeyCredential`, the app calls on it automatically at download time to issue the requester a fresh session key and a `publicKeyCredential` for it, so they can securely receive data.
+    - **Credential** — a signed statement about someone (e.g. "this person is in the US").
+    - **Session key** — an RSA key pair the app generates automatically for the user, via a trusted session-key issuer object, the first time it's needed for a download. Data is encrypted to the **public** half; only the matching **private** half (kept locally) can open it.
+    - **Guardian** — a service that holds the actual data file and hands it out (encrypted) only once a request has been approved.
+    - **Policy** — the owner's policies, enforced automatically. When a user asks for the data, the policy checks their credentials and, if they qualify, approves download.
+
 ---
 
 ## Part 0 — Start the demo app
@@ -64,7 +62,7 @@ You can launch a preinstalled [Codespace](https://github.com/features/codespaces
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/hasan7n/tmp-policies?ref=main){ target="_blank" rel="noopener" }
 
-The devcontainer automatically brings up the ledger, services, registries, and the webapp, and creates the tutorial data file for you. The first start pulls several images, so give it a few minutes — progress shows in the Codespaces log.
+The devcontainer automatically brings up the policy engine, registries, and the webapp, and creates the tutorial data file for you. The first start pulls several images, so give it a few minutes — progress shows in the Codespaces log.
 
 When it finishes, click the forwarded **port 8000** (in the **Ports** tab) to open the webapp. Hover the forwarded address and click the globe icon to open it in a browser. Then follow the steps below.
 
