@@ -10,6 +10,7 @@ SERVICE_HOST=""
 ASSET_REGISTRY_URL=""
 TEMPLATE_REGISTRY_URL=""
 SEED_SCRIPT=""
+CSRF_TRUSTED_ORIGINS=""
 
 usage() {
     cat <<EOF
@@ -33,6 +34,10 @@ Options:
   -t, --template-registry-url URL Template registry URL (required)
   -e, --seed PATH                Seed script (a PDO flow) on the host, run after
                                  bootstrap and before the dev server (optional)
+  -o, --csrf-trusted-origins ORIGINS
+                                 Comma-separated origins to add to Django's CSRF
+                                 trust list, for when the port is reached through
+                                 an HTTPS tunnel rather than localhost (optional)
   -h, --help                     Show this help and exit
 EOF
 }
@@ -51,6 +56,7 @@ while [ $# -gt 0 ]; do
         -a|--asset-registry-url)   ASSET_REGISTRY_URL="$2"; shift 2 ;;
         -t|--template-registry-url) TEMPLATE_REGISTRY_URL="$2"; shift 2 ;;
         -e|--seed)                 SEED_SCRIPT="$2"; shift 2 ;;
+        -o|--csrf-trusted-origins) CSRF_TRUSTED_ORIGINS="$2"; shift 2 ;;
         -h|--help)                 usage; exit 0 ;;
         *)                         echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
@@ -100,6 +106,7 @@ fi
 docker run --rm --user "$(id -u):0" --name policies_web_client \
     -p $INTERFACE:$PORT:8000 \
     --env CONTAINERIZED_DEPLOYMENT=true \
+    --env CSRF_TRUSTED_ORIGINS="$CSRF_TRUSTED_ORIGINS" \
     --env GUARDIAN_DIR="$GUARDIAN_DIR_HOST" \
     --volume ${LEDGER_CERT_PATH}:/tmp/networkcert.pem \
     --volume ${SITE_TOML_SOURCE}:/tmp/site.toml \
