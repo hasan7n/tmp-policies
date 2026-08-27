@@ -6,7 +6,7 @@ This tutorial walks you through the **entire flow using a web UI**. By the end o
 
 ## The story
 
-A research institution publishes a medical dataset but aims to share it only with the individuals that follow specific **policies**. Rather than vetting each requester manually every time, the institution attaches their **policies** to their dataset and lets the Policy Fabric enforce them automatically.
+A research institution publishes a medical dataset but aims to share it only with individuals that meet specific **policies**. Rather than vetting each requester manually every time, the institution registers the **policies** to their dataset and lets the Policy Fabric enforce them automatically.
 
 Three personas participate in this tutorial:
 
@@ -14,7 +14,7 @@ Three personas participate in this tutorial:
 - A **Dataset Owner** who publishes the dataset behind those policies (e.g., research institution, data broker, etc.).
 - A **Dataset User** who wants to download the dataset (e.g., researcher, student, company, etc.)
   
-### The policies for this dataset
+### The policies for the dataset
 
 In this tutorial the **Dataset Owner** attaches the following **two policies** to the dataset. **Both** must hold for a **Dataset User** to download the dataset:
 
@@ -29,7 +29,7 @@ In this tutorial the **Dataset Owner** attaches the following **two policies** t
 
 ---
 
-## The Cast: 3 Roles
+## 3 Personas
 
 Everything runs against a single client identity at a time. This means you change roles by switching the identity in the navbar. The 3 roles are:
 
@@ -54,7 +54,7 @@ Everything runs against a single client identity at a time. This means you chang
 
 ---
 
-## Part 0 — Start the demo app
+## Part 0 — Start the Demo App
 
 ### Running in cloud via GitHub Codespaces
 
@@ -70,7 +70,7 @@ When it finishes, click the forwarded **port 8000** (in the **Ports** tab) to op
 
 ---
 
-## Part 1 — Dataset User: Get your wallet DID
+## Part 1 — Dataset User extracts wallet DID
 
 We start with the **Dataset User** because the **VC Issuer** (Part 2) needs the **Dataset User's wallet DID** (i.e., the identity of the user the credentials belong to) before it can issue anything for them.
 
@@ -87,13 +87,13 @@ We start with the **Dataset User** because the **VC Issuer** (Part 2) needs the 
 
 ---
 
-## Part 2 — VC Issuer: Create issuer objects and issue the user's credentials
+## Part 2 — VC Issuer creates issuer objects and issues user's credentials
 
 You'll create two separate issuer objects here: a **manual** one, which signs two credentials by hand about `data_user`, and a **session-key** one, which you set up once and otherwise leave alone — the app calls on it automatically later, in Part 4.
 
 > **🔁 Switch identity to `vc_issuer`.**
 
-### 2.1 Create the manual issuer object
+### 2.1 Create manual issuer object
 
 1. Go to **Issuers** (navbar) → **+ Create Issuer**.
 2. **Name:** e.g. `credential issuer`. **Issuer Type:** **Manual**. → **Create**.
@@ -103,7 +103,7 @@ You'll create two separate issuer objects here: a **manual** one, which signs tw
 
 *What's happening:* A **wallet** — as we discussed before — can be used as a container to store credentials. An **issuer object**, on the other hand, holds signing keys so its owner can issue credentials by signing them: anything it signs can be traced back to it and checked for authenticity.
 
-### 2.2 Create the session-key issuer object
+### 2.2 Create session-key issuer object
 
 1. Still on **Issuers** → **+ Create Issuer**.
 2. **Name:** e.g. `key issuer`. **Issuer Type:** choose the option labeled **Session Key**. → **Create**.
@@ -161,13 +161,13 @@ Both credentials are now in `data_user`'s wallet. (Switch to `data_user` and ope
 
 ---
 
-## Part 3 — Dataset Owner: publish the dataset behind a policy
+## Part 3 — Dataset Owner publishes dataset behind policies
 
-Now the owner puts data on offer, stands up a guardian for it, and defines the policies for who may download it.
+Now the **Dataset Owner** stands up a guardian for storing the dataset, and registers the policies 
 
 > **🔁 Switch identity to `data_owner`.**
 
-### 3.0 The dataset file
+### 3.0 Dataset file
 
 For the tutorial's sake, the dataset is a single small file. **It is already created for you at `/tmp/asset_data.txt`** — you don't need to create anything.
 
@@ -199,13 +199,13 @@ For the tutorial's sake, the dataset is a single small file. **It is already cre
 
 *What's happening:* this attaches the **policy** to the asset — the two policies plus the allowed values you entered — and records **which issuer objects it trusts, and for which credential types**. The geographic rule asks for a location in an allowed country **plus** the user's session key; the institution rule asks for membership in an allowed institution **plus** the session key — both about the **same person** — and every such credential must be signed by a Trusted Issuer object. Without trusting `ISSUER_DID` for the location/affiliation credentials and `BINDING_DID` for the session-key credential, the user's credentials would be present but rejected as coming from an unknown source (or missing entirely). Also, if you put different allowed values (e.g., removed `US` and used some other country), the policy will also result in a denial, since the `data_user` in this tutorial is given a credential claiming they are in the `US`.
 
-The asset is now fully published: data behind a guardian, gated by a policy that trusts both issuer objects.
+The asset is now fully published: dataset behind a guardian, gated by a policy that trusts both issuer objects.
 
 ---
 
-## Part 4 — Dataset User: Download dataset
+## Part 4 — Dataset User downloads the dataset
 
-Finally, the user requests to download the dataset.
+Finally, the **Dataset User** requests to download the dataset.
 
 > **🔁 Switch identity to `data_user`.**
 
@@ -220,7 +220,7 @@ Finally, the user requests to download the dataset.
 *What's happening in the background* (the whole handshake, end to end):
 
 1. The app checks whether the policy requires a `publicKeyCredential` and whether the `data_user` wallet already has one. It doesn't yet, so the app asks the trusted session-key issuer object (`BINDING_DID`) for one — it generates a fresh session key and issues the `publicKeyCredential` automatically, with no extra step from you.
-2. The app gathers the user's credentials (session key, location, affiliation) into a single request.
+2. The app gathers the **Dataset User's** credentials (session key, location, affiliation) into a single request.
 3. The **policy** checks that each credential is signed by a Trusted Issuer object and that both policies pass — and since the same person satisfies both, it **approves** the request and issues a capability package containing the user's session key.
 4. That capability package goes to the **guardian**, which encrypts the file to the user's session key and returns it.
 5. The app decrypts it with `data_user`'s **private** session key and shows you the data.
@@ -249,6 +249,6 @@ session-key issuer object  ──issues──►  publicKeyCredential (session k
 data_user  ◄── decrypt with private session key ──────  encrypted file
 ```
 
-The **Data Owner** never saw the **Dataset User's** credentials, the **Guardian** never evaluated the policies, and the dataset was downloaded from the **Guardian** encrypted to a key only the compliant *Data User** holds.
+IMPORTANT: The **Dataset Owner** never saw the **Dataset User's** credentials, the **Guardian** never evaluated the policies, and the dataset was downloaded from the **Guardian** encrypted to a key only the compliant *Data User** holds.
 
 ---
