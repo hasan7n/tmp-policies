@@ -82,11 +82,11 @@ mkdir -p "$SCRATCH_DIR"
 # guardians itself. Instead it writes each guardian start command as a shell
 # script into a directory shared with the host (a subdir of the scratch mount);
 # this launcher watches that directory and runs each script on the host. The
-# guardian command it writes invokes guardian/run.sh, so the webapp is told the
-# guardian directory's host path.
+# command it writes invokes the run.sh of whichever guardian the owner chose, so
+# the webapp is told each guardian directory's host path.
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 REPO_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
-GUARDIAN_DIR_HOST="$REPO_ROOT/guardian"
+GUARDIANS_DIR_HOST="$REPO_ROOT/guardians"
 GUARDIAN_WATCH_DIR="$SCRATCH_DIR/guardian_requests"
 mkdir -p "$GUARDIAN_WATCH_DIR"
 
@@ -107,7 +107,7 @@ docker run --rm --user "$(id -u):0" --name policies_web_client \
     -p $INTERFACE:$PORT:8000 \
     --env CONTAINERIZED_DEPLOYMENT=true \
     --env CSRF_TRUSTED_ORIGINS="$CSRF_TRUSTED_ORIGINS" \
-    --env GUARDIAN_DIR="$GUARDIAN_DIR_HOST" \
+    --env GUARDIANS_DIR="$GUARDIANS_DIR_HOST" \
     --volume ${LEDGER_CERT_PATH}:/tmp/networkcert.pem \
     --volume ${SITE_TOML_SOURCE}:/tmp/site.toml \
     --volume ${USER_KEYS_FOLDER}:/tmp/user_keys \

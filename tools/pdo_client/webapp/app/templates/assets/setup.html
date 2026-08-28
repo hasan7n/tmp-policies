@@ -32,6 +32,46 @@
                        placeholder="/path/to/data/file.txt" required>
             </div>
 
+            <div class="form-group">
+                <label for="id_guardian_type">Guardian Type</label>
+                <select id="id_guardian_type" name="guardian_type" required>
+                    {% for g in guardians %}
+                    <option value="{{ g.type }}" {% if g.type == guardian_type %}selected{% endif %}>{{ g.title }}</option>
+                    {% empty %}
+                    <option value="">No guardians found — check GUARDIANS_DIR</option>
+                    {% endfor %}
+                </select>
+                <small>
+                    {% for g in guardians %}
+                    <strong>{{ g.title }}</strong> — {{ g.description }}<br>
+                    {% endfor %}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="id_serve_on">Serve On</label>
+                <select id="id_serve_on" name="serve_on" required>
+                    {% for s in serve_on_choices %}
+                    <option value="{{ s }}" {% if s == serve_on %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+                <small>
+                    Which addresses the guardian listens on. An inference guardian is
+                    reached over the loopback interface by the FL client bundled with it,
+                    so <strong>localhost</strong> is enough for it.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="id_port">Port</label>
+                <input type="number" id="id_port" name="port" min="1" max="65535"
+                       value="{{ port }}" required>
+                <small>
+                    The download and inference guardians also take the next port up for
+                    their storage service.
+                </small>
+            </div>
+
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Register Asset</button>
                 <a href="/" class="btn">Cancel</a>

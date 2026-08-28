@@ -27,7 +27,9 @@
                 <button type="button" class="btn btn-sm btn-primary"
                         data-action="open-use"
                         data-asset-did="{{ a.did }}"
-                        data-asset-name="{{ a.name }}">Use</button>
+                        data-asset-name="{{ a.name }}"
+                        data-guardian-type="{{ a.guardian_type }}"
+                        data-action-label="{{ a.action_label }}">Use</button>
                 {% else %}
                 <span style="display:inline-block"
                       title="This asset is not behind a guardian yet, so it cannot be used.">
@@ -52,28 +54,50 @@
             <button type="button" class="modal-close"
                     data-modal-close="use-modal">&times;</button>
         </div>
-        <div class="form-group">
-            <label for="use-wallet-select">Wallet</label>
-            <select id="use-wallet-select" name="wallet_id" required>
-                {% for w in wallets %}
-                <option value="{{ w.contract_id }}">{{ w.name }}</option>
-                {% empty %}
-                <option value="">No wallets — create one first</option>
-                {% endfor %}
-            </select>
-        </div>
+        <!-- One wallet per role the asset's policy declares. The roles are not
+             known until the policy is queried, so the JS fills this in when the
+             modal opens, cloning #use-role-template for each. -->
+        <div id="use-roles"></div>
+
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary" {% if not wallets %}disabled{% endif %}>Request Download</button>
+            <button type="submit" class="btn btn-primary" id="use-submit">Use</button>
             <button type="button" class="btn"
                     data-modal-close="use-modal">Cancel</button>
         </div>
     </form>
 </div>
 
+<!-- Cloned once per role by assets_list.js. A role is presented from whichever
+     identity holds its credentials, so both kinds are offered: the requester's
+     own wallets, and script assets (whose identity holds the credentials about
+     the script, and whose DID locates the script itself). -->
+<template id="use-role-template">
+    <div class="form-group" data-role-group>
+        <label data-role-label></label>
+        <select data-role-select>
+            <optgroup label="Wallets">
+                {% for w in wallets %}
+                <option value="{{ w.contract_id }}">{{ w.name }}</option>
+                {% empty %}
+                <option value="" disabled>No wallets — create one first</option>
+                {% endfor %}
+            </optgroup>
+            <optgroup label="Scripts">
+                {% for s in script_assets %}
+                <option value="{{ s.contract_id }}">{{ s.name }}</option>
+                {% empty %}
+                <option value="" disabled>No scripts — register one behind a public guardian</option>
+                {% endfor %}
+            </optgroup>
+        </select>
+        <small data-role-hint></small>
+    </div>
+</template>
+
 <div id="use-result-modal" class="modal-backdrop hidden">
     <div class="modal" style="max-width:640px">
         <div class="modal-header">
-            <span class="modal-title">Decrypted Data</span>
+            <span class="modal-title" id="use-result-title">Result</span>
             <button type="button" class="modal-close"
                     data-modal-close="use-result-modal">&times;</button>
         </div>

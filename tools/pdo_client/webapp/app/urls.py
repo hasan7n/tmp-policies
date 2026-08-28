@@ -10,6 +10,7 @@ from .views.assets import (
     AssetsListView,
     AssetUpdatePolicyDataEndpoint,
     AssetUseEndpoint,
+    AssetUseFormEndpoint,
     AssetUseStreamView,
 )
 from .views.config import ConfigPageView, IdentityProvisionView, IdentitySetView
@@ -86,6 +87,11 @@ urlpatterns = [
     ),
     # JSON endpoints
     path("api/assets/use/", AssetUseEndpoint.as_view(), name="api_asset_use"),
+    path(
+        "api/assets/use-form/",
+        AssetUseFormEndpoint.as_view(),
+        name="api_asset_use_form",
+    ),
     path(
         "api/assets/use/stream/",
         AssetUseStreamView.as_view(),

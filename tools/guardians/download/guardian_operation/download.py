@@ -38,7 +38,10 @@ class DownloadOperation:
         return AsymmetricEncryption().encrypt(channel_key.encode(), self.data.encode())
 
     # -----------------------------------------------------------------
-    def __call__(self, params):
+    # request_context carries what the caller claims about this request. Releasing
+    # the data turns only on the channel key the capability authorizes, so there is
+    # nothing here to check it against and it is ignored.
+    def __call__(self, params, request_context):
         if not ValidateJSON(params, self.__schema__):
             return None
         channel_key = params["channel_key"]

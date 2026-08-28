@@ -210,7 +210,7 @@ Finally, the user requests to download the dataset.
 > **🔁 Switch identity to `data_user`.**
 
 1. Go to **Assets**. The `data1` card now shows an enabled **Use** button.
-2. Click **Use** → in the modal, select **your wallet** → **Request Download**.
+2. Click **Use** → in the modal, select **your wallet** under **User wallet** → **Request Download**.
 3. After a moment, the **Decrypted Data** panel appears showing:
 
    ```text

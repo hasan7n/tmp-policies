@@ -330,67 +330,183 @@ def _find_trusted_issuer_for_type(raw_issuers, credential_type):
 # ============================================================
 # Asset use ops (consumer-side)
 # ============================================================
-def ensure_public_key_credential(wallet_id, token_id, user_name, keys_dir):
-    """Ensure the wallet holds a publicKeyCredential if the asset's policy
-    requires one.
+def _resolve_policy_id(state, token_id, user_name):
+    """The policy agent contract id a token names, or ``None`` if it names none.
 
-    No-op if the policy doesn't require ``publicKeyCredential`` or the wallet
-    already has one. Otherwise finds the policy's trusted external_key_authority
-    for that credential type and binds a fresh session key to the wallet
-    through it, which stores the issued credential directly in the wallet.
+    The caller must hold ``_op_lock``.
+    """
+    issuers_raw = rego_token.list_trusted_issuers(state, token_id, user_name)
+    issuers = (
+        json.loads(issuers_raw) if isinstance(issuers_raw, str) else (issuers_raw or {})
+    )
+    if not issuers:
+        return None
+    return next(iter(issuers.keys()))
 
-    Returns ``True`` if a credential was obtained, ``False`` if this was a
-    no-op. Raises ``ValueError`` if the credential is required but no trusted
-    issuer is registered for it.
+
+def get_policy_requirements(token_id, user_name):
+    """Return an asset policy's per-role credential requirements.
+
+    Shaped as ``{role: [credential_type, ...]}`` — the union the policy's
+    subpolicies declared. Empty if the token names no policy. The consumer needs
+    this before presenting anything, since it decides which roles must be filled
+    and from where.
     """
     state = get_state()
     with _op_lock:
-        issuers_raw = rego_token.list_trusted_issuers(state, token_id, user_name)
-        issuers = (
-            json.loads(issuers_raw) if isinstance(issuers_raw, str) else (issuers_raw or {})
-        )
-        if not issuers:
-            return False
-        policy_id = next(iter(issuers.keys()))
+        policy_id = _resolve_policy_id(state, token_id, user_name)
+        if policy_id is None:
+            return {}
+        requirements = rego_policy_agent.get_requirements(state, policy_id, user_name)
+    if isinstance(requirements, str):
+        return json.loads(requirements) if requirements else {}
+    return requirements or {}
+
+
+def ensure_public_key_credential(wallet_ids, token_id, user_name, keys_dir_for):
+    """Ensure a publicKeyCredential exists wherever the asset's policy expects one.
+
+    A policy asks for the credential under a particular role, and that role's
+    wallet is the one that must hold it — so this looks at each role the policy
+    requires it for and binds a fresh session key to that role's wallet, through
+    the policy's trusted external_key_authority, which stores the issued
+    credential directly in the wallet.
+
+    ``wallet_ids`` maps role to wallet contract id; ``keys_dir_for(wallet_id)``
+    returns where that wallet's session keys live. No-op for a role whose wallet
+    already holds one.
+
+    Returns the list of roles a credential was obtained for. Raises ``ValueError``
+    if the credential is required but no trusted issuer is registered for it, or
+    if a role that needs one has no wallet.
+    """
+    state = get_state()
+    obtained = []
+    with _op_lock:
+        policy_id = _resolve_policy_id(state, token_id, user_name)
+        if policy_id is None:
+            return obtained
 
         requirements = rego_policy_agent.get_requirements(state, policy_id, user_name)
-        required_types = {t for types in requirements.values() for t in types}
-        if PUBLIC_KEY_CREDENTIAL_TYPE not in required_types:
-            return False
+        roles = [
+            role
+            for role, types in (requirements or {}).items()
+            if PUBLIC_KEY_CREDENTIAL_TYPE in types
+        ]
+        if not roles:
+            return obtained
 
-        vc_map_raw = signature_authority.get_vc_list(state, wallet_id, user_name)
-        vc_map = json.loads(vc_map_raw) if isinstance(vc_map_raw, str) else (vc_map_raw or {})
-        if PUBLIC_KEY_CREDENTIAL_TYPE in vc_map:
-            return False
+        eka_id = None
+        for role in roles:
+            wallet_id = wallet_ids.get(role)
+            if not wallet_id:
+                raise ValueError(
+                    f"The policy requires a {PUBLIC_KEY_CREDENTIAL_TYPE} for the "
+                    f"'{role}' role, but no wallet was chosen for it."
+                )
 
-        policy_issuers_raw = rego_policy_agent.list_trusted_issuers(
-            state, policy_id, user_name
-        )
-        eka_id = _find_trusted_issuer_for_type(
-            policy_issuers_raw, PUBLIC_KEY_CREDENTIAL_TYPE
-        )
-        if eka_id is None:
-            raise ValueError(
-                "This asset's policy requires a publicKeyCredential, but no "
-                "trusted issuer is registered for it."
+            vc_map_raw = signature_authority.get_vc_list(state, wallet_id, user_name)
+            vc_map = (
+                json.loads(vc_map_raw) if isinstance(vc_map_raw, str) else (vc_map_raw or {})
             )
+            if PUBLIC_KEY_CREDENTIAL_TYPE in vc_map:
+                continue
 
-        external_key_authority.bind_external_key(
-            state, eka_id, wallet_id, user_name, keys_dir=keys_dir
-        )
-        time.sleep(1)
-        return True
+            if eka_id is None:
+                policy_issuers_raw = rego_policy_agent.list_trusted_issuers(
+                    state, policy_id, user_name
+                )
+                eka_id = _find_trusted_issuer_for_type(
+                    policy_issuers_raw, PUBLIC_KEY_CREDENTIAL_TYPE
+                )
+                if eka_id is None:
+                    raise ValueError(
+                        "This asset's policy requires a publicKeyCredential, but no "
+                        "trusted issuer is registered for it."
+                    )
+
+            external_key_authority.bind_external_key(
+                state, eka_id, wallet_id, user_name, keys_dir=keys_dir_for(wallet_id)
+            )
+            time.sleep(1)
+            obtained.append(role)
+
+    return obtained
 
 
-def use_asset(*, wallet_id, token_id, guardian_url_port, user_name, output_dir=None):
-    """Run the consumer download flow against a rego_policy_agent.
+def _issue_policy_decision(state, wallet_ids, token_id, user_name, issued_path):
+    """Have an asset's policy judge a presentation, writing the verdict to ``issued_path``.
 
     1. Read the token's trusted-issuer list to discover the policy agent.
     2. Get the per-role credential requirements from the policy.
-    3. Build a VP from the wallet covering the union of required types.
-    4. Wrap it as the role-keyed presentation the rego_policy_agent expects.
+    3. Build one VP per role, from that role's wallet, covering that role's types.
+    4. Wrap them as the role-keyed presentation the rego_policy_agent expects.
     5. Issue a policy_decision credential from the policy.
-    6. Download the (encrypted) data through the guardian.
+
+    ``wallet_ids`` maps role to wallet contract id. A role is a group of evidence
+    about one subject, so each role is presented from the wallet holding that
+    subject's credentials — the requester's own wallet for ``User``, the script's
+    for ``Script``.
+
+    This is where every policy-gated flow starts; what follows differs only in what
+    the resulting capability is handed to. The caller must hold ``_op_lock``.
+    """
+    presentation_path = _tmp_path(".json")
+    vp_paths = []
+
+    try:
+        policy_id = _resolve_policy_id(state, token_id, user_name)
+        time.sleep(1)
+        if policy_id is None:
+            raise ValueError("No trusted issuers registered on this token contract.")
+
+        # rego_policy_agent.get_requirements returns { role: [credential_type, ...] }
+        requirements = rego_policy_agent.get_requirements(state, policy_id, user_name)
+        time.sleep(1)
+        if not requirements:
+            raise ValueError("This asset's policy declares no credential requirements.")
+
+        presentation = {}
+        for role, types in requirements.items():
+            wallet_id = wallet_ids.get(role)
+            if not wallet_id:
+                raise ValueError(f"No wallet was chosen for the '{role}' role.")
+
+            vp_path = _tmp_path(".json")
+            vp_paths.append(vp_path)
+            signature_authority.get_vp(
+                state,
+                wallet_id,
+                user_name,
+                types=sorted(set(types)),
+                output_file=vp_path,
+            )
+            time.sleep(1)
+            with open(vp_path) as f:
+                presentation[role] = json.load(f)
+
+        with open(presentation_path, "w") as f:
+            json.dump(presentation, f)
+
+        rego_policy_agent.issue_policy_credential(
+            state,
+            policy_id,
+            user_name,
+            presentation=presentation_path,
+            issued_credential=issued_path,
+        )
+        time.sleep(1)
+    finally:
+        for vp_path in vp_paths:
+            _safe_unlink(vp_path)
+        _safe_unlink(presentation_path)
+
+
+def use_asset(*, wallet_ids, token_id, guardian_url_port, user_name, output_dir=None):
+    """Run the consumer download flow against a rego_policy_agent.
+
+    Issues a policy decision credential and redeems the capability it authorizes
+    at the guardian, downloading the (encrypted) data.
 
     Returns ``(output_path, issued_vc_dict)``.
     """
@@ -398,61 +514,12 @@ def use_asset(*, wallet_id, token_id, guardian_url_port, user_name, output_dir=N
     output_dir = output_dir or cfg.DOWNLOAD_OUTPUT_DIR
     os.makedirs(output_dir, exist_ok=True)
 
-    vp_path = _tmp_path(".json")
-    presentation_path = _tmp_path(".json")
     issued_path = _tmp_path(".json")
     output_path = os.path.join(output_dir, f"download_{os.urandom(4).hex()}.bin")
 
     try:
         with _op_lock:
-            issuers_raw = rego_token.list_trusted_issuers(state, token_id, user_name)
-            time.sleep(1)
-            issuers = (
-                json.loads(issuers_raw)
-                if isinstance(issuers_raw, str)
-                else (issuers_raw or {})
-            )
-            if not issuers:
-                raise ValueError(
-                    "No trusted issuers registered on this token contract."
-                )
-            policy_id = next(iter(issuers.keys()))
-
-            # rego_policy_agent.get_requirements returns { role: [credential_type, ...] }
-            requirements = rego_policy_agent.get_requirements(
-                state, policy_id, user_name
-            )
-            time.sleep(1)
-            # build one VP from the wallet covering every required credential type
-            required_types = sorted(
-                {t for types in requirements.values() for t in types}
-            )
-            signature_authority.get_vp(
-                state,
-                wallet_id,
-                user_name,
-                types=required_types,
-                output_file=vp_path,
-            )
-            time.sleep(1)
-
-            # the rego_policy_agent expects the presentation keyed by role:
-            # { role: <verifiable presentation> }. Our policies use a single
-            # "User" role, but key each required role to the VP for generality.
-            with open(vp_path) as f:
-                vp = json.load(f)
-            presentation = {role: vp for role in requirements} or {"User": vp}
-            with open(presentation_path, "w") as f:
-                json.dump(presentation, f)
-
-            rego_policy_agent.issue_policy_credential(
-                state,
-                policy_id,
-                user_name,
-                presentation=presentation_path,
-                issued_credential=issued_path,
-            )
-            time.sleep(1)
+            _issue_policy_decision(state, wallet_ids, token_id, user_name, issued_path)
             rego_token.do_operation(
                 state,
                 token_id,
@@ -466,6 +533,40 @@ def use_asset(*, wallet_id, token_id, guardian_url_port, user_name, output_dir=N
             issued_vc = json.load(f)
         return output_path, issued_vc
     finally:
-        _safe_unlink(vp_path)
-        _safe_unlink(presentation_path)
         _safe_unlink(issued_path)
+
+
+def create_capability(*, wallet_ids, token_id, user_name):
+    """Run the consumer flow up to the capability, without redeeming it.
+
+    Used by actions where someone else contacts the guardian: the inference flow
+    hands the capability to an FL server, which passes it to the FL client running
+    beside the guardian. The capability is bound to the guardian the token names,
+    so handing it on does not widen what it authorizes.
+
+    Returns ``(capability_dict, issued_vc_dict)``.
+    """
+    state = get_state()
+
+    issued_path = _tmp_path(".json")
+    capability_path = _tmp_path(".json")
+
+    try:
+        with _op_lock:
+            _issue_policy_decision(state, wallet_ids, token_id, user_name, issued_path)
+            rego_token.create_capability(
+                state,
+                token_id,
+                user_name,
+                vc_file=issued_path,
+                output_file=capability_path,
+            )
+
+        with open(capability_path) as f:
+            capability = json.load(f)
+        with open(issued_path) as f:
+            issued_vc = json.load(f)
+        return capability, issued_vc
+    finally:
+        _safe_unlink(issued_path)
+        _safe_unlink(capability_path)

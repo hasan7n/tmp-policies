@@ -1,6 +1,6 @@
 set -e
 INTERFACE="$(hostname -I | awk '{print $1}')"
-bash guardian/run.sh \
+bash guardians/download/run.sh \
     --image mlcommons/toy_guardian:latest \
     --interface $INTERFACE \
     --port 7900 \

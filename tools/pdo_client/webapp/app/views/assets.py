@@ -6,12 +6,13 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 
 from .. import (
+    action_runners,
     guardian_launcher,
+    guardian_registry,
     ledger_client,
     naming,
     pdo_runner,
     registry_client,
-    session_keys,
 )
 from ..did_utils import make_did, parse_did
 from ..models import AppConfig
@@ -41,6 +42,84 @@ def _json_body(request):
 def _guardian_url_port(host, port):
     """Compose the canonical guardian URL the rego token contract stores."""
     return f"http://{host}:{port}"
+
+
+def _offerable_guardians():
+    """The guardians the registration form may offer.
+
+    A guardian is offerable when it can be both launched and used: its folder
+    supplies a manifest, and ``app.action_runners`` supplies a runner keyed by the
+    same type. Registering an asset behind a guardian nobody can drive would only
+    produce an asset that cannot be used.
+    """
+    return [
+        m for m in guardian_registry.manifests() if m.type in action_runners.RUNNERS
+    ]
+
+
+def _guardian_options(form=None):
+    """The guardian choices the registration form offers, with the current picks.
+
+    ``form`` is the submitted data on a re-render, so a failed registration comes
+    back with the owner's selections intact.
+    """
+    form = form or {}
+    guardians = _offerable_guardians()
+    default_type = settings.DEFAULT_GUARDIAN_TYPE
+    if not any(m.type == default_type for m in guardians):
+        default_type = guardians[0].type if guardians else ""
+    return {
+        "guardians": guardians,
+        "serve_on_choices": settings.SERVE_ON_CHOICES,
+        "guardian_type": form.get("guardian_type") or default_type,
+        "serve_on": form.get("serve_on") or settings.DEFAULT_SERVE_ON,
+        "port": form.get("port") or settings.GUARDIAN_PORT,
+    }
+
+
+def _clean_guardian_choice(data):
+    """Validate the guardian fields of a registration request.
+
+    Returns ``(guardian_type, serve_on, port)``. Raises ``ValueError`` with a
+    message meant for the owner.
+    """
+    guardian_type = (data.get("guardian_type") or settings.DEFAULT_GUARDIAN_TYPE).strip()
+    serve_on = (data.get("serve_on") or settings.DEFAULT_SERVE_ON).strip()
+    port = str(data.get("port") or settings.GUARDIAN_PORT).strip()
+
+    offerable = {m.type for m in _offerable_guardians()}
+    if guardian_type not in offerable:
+        raise ValueError(f"Unknown guardian type: {guardian_type}")
+    if serve_on not in settings.SERVE_ON_CHOICES:
+        raise ValueError(f"Unknown serve_on choice: {serve_on}")
+    if not port.isdigit() or not (1 <= int(port) <= 65535):
+        raise ValueError(f"Port must be a number between 1 and 65535: {port}")
+
+    return guardian_type, serve_on, port
+
+
+def _clean_wallets(data, user_name):
+    """Pull the per-role wallet choices out of a use request.
+
+    ``{"wallets": {role: contract_id}}`` is the general form. A bare
+    ``{"wallet_id": ...}`` is accepted as shorthand for the ``User`` role, which is
+    the only role a single-role policy has. Every named wallet must belong to the
+    current identity.
+    """
+    wallets = data.get("wallets")
+    if not isinstance(wallets, dict):
+        wallet_id = (data.get("wallet_id") or "").strip()
+        wallets = {"User": wallet_id} if wallet_id else {}
+
+    cleaned = {}
+    for role, contract_id in wallets.items():
+        contract_id = (contract_id or "").strip()
+        if not contract_id:
+            raise ValidationError(f"no wallet chosen for the '{role}' role")
+        if not ledger_client.user_owns_contract(user_name, contract_id):
+            raise ValidationError(f"wallet not found: {contract_id}")
+        cleaned[role] = contract_id
+    return cleaned
 
 
 def _resolve_policy_id(token_contract_id, user_name):
@@ -120,22 +199,42 @@ class AssetsListView(BaseView):
             owned_ids = set(ledger_client.list_signature_authority_ids(user_name))
             for a in assets:
                 cid, _ = parse_did(a["did"])
+                metadata = a.get("metadata") or {}
                 a["contract_id"] = cid
                 a["cid_url"] = encode_cid(cid)
                 a["is_local"] = cid in owned_ids
                 # An asset can only be "used" once it is behind a guardian.
-                a["has_guardian"] = bool((a.get("metadata") or {}).get("guardian_url"))
+                a["has_guardian"] = bool(metadata.get("guardian_url"))
+                # What the Use modal offers is decided by the guardian the owner
+                # registered the asset with.
+                guardian_type = action_runners.guardian_type_of(metadata)
+                runner_class = action_runners.RUNNERS.get(guardian_type)
+                a["guardian_type"] = guardian_type
+                a["action_label"] = runner_class.label if runner_class else "Use"
+                a["needs_wallets"] = bool(runner_class and runner_class.needs_wallets)
         except Exception as e:
             logger.exception("Failed to fetch assets")
             list_error = str(e)
 
         wallets = _user_wallet_cards(user_name)
+        # A role is presented from whichever identity holds that role's credentials.
+        # For the requester that is one of their wallets; for a script it is the
+        # script asset itself, whose identity contract holds the credentials about
+        # it and whose DID resolves to the public guardian it can be fetched from.
+        # Only locally owned ones are offered, since presenting from an identity
+        # means invoking it.
+        script_assets = [
+            {"contract_id": a["contract_id"], "name": a["name"], "did": a["did"]}
+            for a in assets
+            if a.get("guardian_type") == "public" and a.get("is_local")
+        ]
         return render(
             request,
             "assets/list.html",
             {
                 "assets": assets,
                 "wallets": wallets,
+                "script_assets": script_assets,
                 "list_error": list_error,
             },
         )
@@ -145,20 +244,19 @@ class AssetSetupView(BaseView):
     """GET: registration form. POST: deploy a guardian for the data and register
     the asset.
 
-    Registering an asset also starts a guardian serving the given data path; we
-    wait for the guardian to be healthy before recording it on the asset, so the
-    asset is only created once it is actually behind a running guardian.
+    Registering an asset also starts a guardian serving the given data path — the
+    kind, bind address and port the owner chose on the form; we wait for the
+    guardian to be healthy before recording it on the asset, so the asset is only
+    created once it is actually behind a running guardian.
     """
 
     def get(self, request):
-        return render(request, "assets/setup.html")
+        return render(request, "assets/setup.html", _guardian_options())
 
     def _error(self, request, message):
-        return render(
-            request,
-            "assets/setup.html",
-            {"form": request.POST, "error": message},
-        )
+        ctx = _guardian_options(request.POST)
+        ctx.update({"form": request.POST, "error": message})
+        return render(request, "assets/setup.html", ctx)
 
     def post(self, request):
         name = (request.POST.get("name") or "").strip()
@@ -167,6 +265,11 @@ class AssetSetupView(BaseView):
         if not all([name, data_source]):
             return self._error(request, "All fields are required.")
 
+        try:
+            guardian_type, serve_on, port = _clean_guardian_choice(request.POST)
+        except ValueError as e:
+            return self._error(request, str(e))
+
         config = AppConfig.get_instance()
         user_name = config.public_key
 
@@ -174,7 +277,10 @@ class AssetSetupView(BaseView):
         # the asset, so an asset never exists without a working guardian.
         try:
             guardian_url, guardian_port = guardian_launcher.deploy_guardian(
-                data_source
+                data_source,
+                guardian_type=guardian_type,
+                serve_on=serve_on,
+                port=port,
             )
             guardian_launcher.wait_until_healthy(guardian_url, guardian_port)
         except Exception as e:
@@ -192,6 +298,8 @@ class AssetSetupView(BaseView):
                     "data_source": data_source,
                     "guardian_url": guardian_url,
                     "guardian_port": guardian_port,
+                    "guardian_type": guardian_type,
+                    "serve_on": serve_on,
                 },
             )
 
@@ -208,7 +316,9 @@ class AssetSetupView(BaseView):
             return self._error(request, f"Failed to register asset: {e}")
 
         return redirect_with_msg(
-            "/", f'Asset "{name}" registered and running behind a guardian.', "success"
+            "/",
+            f'Asset "{name}" registered behind a {guardian_type} guardian.',
+            "success",
         )
 
 
@@ -241,6 +351,11 @@ class AssetDashboardView(BaseView):
         guardian_url = metadata.get("guardian_url", "")
         guardian_port = metadata.get("guardian_port", "")
         guardian_deployed = bool(guardian_url and guardian_port)
+        # A guardian that enforces nothing has nothing to attach a policy to, so the
+        # Expose form is only offered for the ones that do.
+        guardian_type = action_runners.guardian_type_of(metadata)
+        runner_class = action_runners.RUNNERS.get(guardian_type)
+        supports_policy = bool(runner_class and runner_class.needs_policy)
         ctx = {
             "asset": {
                 "contract_id": contract_id,
@@ -252,6 +367,9 @@ class AssetDashboardView(BaseView):
             "guardian_deployed": guardian_deployed,
             "guardian_url": guardian_url,
             "guardian_port": guardian_port,
+            "guardian_type": guardian_type,
+            "serve_on": metadata.get("serve_on", ""),
+            "supports_policy": supports_policy,
             "guardian_endpoint": (
                 _guardian_url_port(guardian_url, guardian_port)
                 if guardian_deployed
@@ -499,51 +617,80 @@ class AssetExposeView(BaseView):
 # JSON endpoints
 # ============================================================
 class AssetUseEndpoint(JsonView):
-    """POST {asset_did, wallet_id} — run the consumer download flow, decrypt the
-    downloaded data with the wallet's session key, and return ``{data}``.
+    """POST {asset_did, wallet_id, ...} — run the action this asset's guardian
+    supports and return its result.
+
+    Which flow runs, what else the payload must carry, and what comes back are all
+    decided by the action runner (see ``app.action_runners``); this handler only
+    checks the wallet and hands over.
     """
 
     def handle(self, request, data, **kwargs):
         asset_did = require(data, "asset_did")
-        wallet_id = require(data, "wallet_id")
-
         user_name = AppConfig.get_instance().public_key
-        if not ledger_client.user_owns_contract(user_name, wallet_id):
-            raise ValidationError(f"wallet not found: {wallet_id}")
+        wallets = _clean_wallets(data, user_name)
 
         asset_info = registry_client.get_asset_by_did(asset_did)
         metadata = asset_info.get("metadata", {}) or {}
 
-        token_did = metadata.get("policy_contract", "")
-        if not token_did:
-            raise ValidationError(
-                "Asset has not been exposed (no policy_contract in registry)."
-            )
-
-        token_contract_id, _ = parse_did(token_did)
-        guardian = _guardian_url_port(
-            metadata.get("guardian_url", ""),
-            metadata.get("guardian_port", ""),
-        )
-
         try:
-            pdo_runner.ensure_public_key_credential(
-                wallet_id,
-                token_contract_id,
-                user_name,
-                session_keys.keys_dir(user_name, wallet_id),
+            runner = action_runners.build_runner(
+                user_name=user_name,
+                asset_did=asset_did,
+                metadata=metadata,
+                wallets=wallets,
+                params=data,
             )
         except ValueError as e:
             raise ValidationError(str(e))
 
-        output_path, _ = pdo_runner.use_asset(
-            wallet_id=wallet_id,
-            token_id=token_contract_id,
-            guardian_url_port=guardian,
-            user_name=user_name,
-        )
-        decrypted = session_keys.decrypt_download(user_name, wallet_id, output_path)
-        return {"ok": True, "data": decrypted}
+        result = runner.run()
+        return {"ok": True, "guardian_type": runner.name, **result}
+
+
+class AssetUseFormEndpoint(JsonView):
+    """POST {asset_did} — describe what the Use form must collect for an asset.
+
+    The roles come from the asset's own policy, so the form cannot be rendered
+    from the asset list alone; the client asks for them when the modal opens.
+    """
+
+    def handle(self, request, data, **kwargs):
+        asset_did = require(data, "asset_did")
+        user_name = AppConfig.get_instance().public_key
+
+        try:
+            asset_info = registry_client.get_asset_by_did(asset_did)
+        except Exception as e:
+            raise ValidationError(f"failed to look up asset: {e}")
+        metadata = (asset_info or {}).get("metadata", {}) or {}
+
+        guardian_type = action_runners.guardian_type_of(metadata)
+        try:
+            runner_class = action_runners.get_runner_class(guardian_type)
+        except ValueError as e:
+            raise ValidationError(str(e))
+
+        roles = []
+        if runner_class.needs_wallets:
+            token_did = metadata.get("policy_contract", "")
+            if not token_did:
+                raise ValidationError(
+                    "Asset has not been exposed (no policy_contract in registry)."
+                )
+            token_id, _ = parse_did(token_did)
+            requirements = pdo_runner.get_policy_requirements(token_id, user_name)
+            roles = [
+                {"role": role, "credential_types": sorted(set(types))}
+                for role, types in sorted(requirements.items())
+            ]
+
+        return {
+            "ok": True,
+            "guardian_type": guardian_type,
+            "label": runner_class.label,
+            "roles": roles,
+        }
 
 
 class AssetRegisterPolicyIssuerEndpoint(JsonView):
@@ -648,8 +795,9 @@ class AssetUpdatePolicyDataEndpoint(JsonView):
 # the plain fallbacks.
 # ============================================================
 class AssetSetupStreamView(BaseView):
-    """POST {name, data_source} — deploy a guardian then register the asset,
-    streaming progress. JS variant of :class:`AssetSetupView`."""
+    """POST {name, data_source, guardian_type, serve_on, port} — deploy a guardian
+    then register the asset, streaming progress. JS variant of
+    :class:`AssetSetupView`."""
 
     http_method_names = ["post"]
 
@@ -661,12 +809,22 @@ class AssetSetupStreamView(BaseView):
             return JsonResponse(
                 {"error": "name and data_source are required"}, status=400
             )
+        try:
+            guardian_type, serve_on, port = _clean_guardian_choice(data)
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
         user_name = AppConfig.get_instance().public_key
 
         def deploy(ctx):
-            url, port = guardian_launcher.deploy_guardian(data_source)
-            ctx["guardian_url"], ctx["guardian_port"] = url, port
-            return {"detail": f"{url}:{port}"}
+            url, resolved_port = guardian_launcher.deploy_guardian(
+                data_source,
+                guardian_type=guardian_type,
+                serve_on=serve_on,
+                port=port,
+            )
+            ctx["guardian_url"], ctx["guardian_port"] = url, resolved_port
+            return {"detail": f"{guardian_type} guardian at {url}:{resolved_port}"}
 
         def wait(ctx):
             guardian_launcher.wait_until_healthy(
@@ -686,6 +844,8 @@ class AssetSetupStreamView(BaseView):
                     "data_source": data_source,
                     "guardian_url": ctx["guardian_url"],
                     "guardian_port": ctx["guardian_port"],
+                    "guardian_type": guardian_type,
+                    "serve_on": serve_on,
                 },
             )
             pk = reg["id"]
@@ -708,7 +868,7 @@ class AssetSetupStreamView(BaseView):
             steps,
             complete=lambda ctx: {
                 "redirect": "/",
-                "message": f'Asset "{name}" registered and running behind a guardian.',
+                "message": f'Asset "{name}" registered behind a {guardian_type} guardian.',
             },
         )
 
@@ -830,72 +990,48 @@ class AssetExposeStreamView(BaseView):
 
 
 class AssetUseStreamView(BaseView):
-    """POST {asset_did, wallet_id} — run the consumer download flow and decrypt,
-    streaming progress. The decrypted data is returned on the terminal event as
-    ``result.data``. JS variant of :class:`AssetUseEndpoint`."""
+    """POST {asset_did, wallet_id, ...} — run the asset's action, streaming
+    progress. The action's result is returned on the terminal event as
+    ``result``, alongside ``result_kind`` telling the UI how to render it. JS
+    variant of :class:`AssetUseEndpoint`."""
 
     http_method_names = ["post"]
 
     def post(self, request):
         data = _json_body(request)
         asset_did = (data.get("asset_did") or "").strip()
-        wallet_id = (data.get("wallet_id") or "").strip()
-        if not asset_did or not wallet_id:
-            return JsonResponse(
-                {"error": "asset_did and wallet_id are required"}, status=400
-            )
+        if not asset_did:
+            return JsonResponse({"error": "asset_did is required"}, status=400)
 
         user_name = AppConfig.get_instance().public_key
-        if not ledger_client.user_owns_contract(user_name, wallet_id):
-            return JsonResponse({"error": f"wallet not found: {wallet_id}"}, status=400)
+        try:
+            wallets = _clean_wallets(data, user_name)
+        except ValidationError as e:
+            return JsonResponse({"error": str(e)}, status=400)
 
         try:
             asset_info = registry_client.get_asset_by_did(asset_did)
         except Exception as e:
             return JsonResponse({"error": f"failed to look up asset: {e}"}, status=400)
         metadata = (asset_info or {}).get("metadata", {}) or {}
-        token_did = metadata.get("policy_contract", "")
-        if not token_did:
-            return JsonResponse(
-                {"error": "Asset has not been exposed (no policy_contract)."},
-                status=400,
-            )
-        token_id, _ = parse_did(token_did)
-        guardian = _guardian_url_port(
-            metadata.get("guardian_url", ""), metadata.get("guardian_port", "")
-        )
 
-        def credential(ctx):
-            obtained = pdo_runner.ensure_public_key_credential(
-                wallet_id, token_id, user_name, session_keys.keys_dir(user_name, wallet_id)
-            )
-            if not obtained:
-                raise SkipStep("not required or already present")
-            return {"detail": "obtained from the policy's trusted external key authority"}
-
-        def download(ctx):
-            output_path, _ = pdo_runner.use_asset(
-                wallet_id=wallet_id,
-                token_id=token_id,
-                guardian_url_port=guardian,
+        try:
+            runner = action_runners.build_runner(
                 user_name=user_name,
+                asset_did=asset_did,
+                metadata=metadata,
+                wallets=wallets,
+                params=data,
             )
-            ctx["output_path"] = output_path
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
 
-        def decrypt(ctx):
-            ctx["data"] = session_keys.decrypt_download(
-                user_name, wallet_id, ctx["output_path"]
-            )
-
-        steps = [
-            ("credential", "Checking credential requirements", credential),
-            ("download", "Requesting and downloading the data", download),
-            ("decrypt", "Decrypting with your session key", decrypt),
-        ]
         return stream_steps(
-            steps,
+            runner.steps(),
             complete=lambda ctx: {
-                "result": {"data": ctx.get("data", "")},
-                "message": "Data downloaded and decrypted.",
+                "result": runner.result(ctx),
+                "result_kind": runner.result_kind,
+                "guardian_type": runner.name,
+                "message": f"{runner.label} completed.",
             },
         )

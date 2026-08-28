@@ -38,11 +38,20 @@ for duo in \
     time-limit-on-use \
     user-specific-restriction \
     not-for-profit-organisation-use-only \
-    not-for-profit-non-commercial-use-only; do
+    not-for-profit-non-commercial-use-only \
+    FL/inference-institution-specific-restriction \
+    FL/inference-disease-specific-research; do
     echo "== testing ${duo} =="
     if ! "$opa" test "${here}/${duo}" -v; then
         status=1
     fi
 done
+
+# The FL policies are meant to be selected together, so also check that they
+# combine the way the contract merges them.
+echo "== testing FL combination =="
+if ! OPA="$opa" "${here}/FL/run_combination_test.sh"; then
+    status=1
+fi
 
 exit "$status"

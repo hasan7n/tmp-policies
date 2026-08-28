@@ -90,15 +90,45 @@ F_SERVICE_DB_FILE = f"{SCRATCH_DIR}/service_db"
 # under SESSION_KEYS_DIR/<user_name>/<wallet_id>/.
 SESSION_KEYS_DIR = os.path.join(SCRATCH_DIR, "session_keys")
 
-# Guardian deployment: registering an asset also starts a guardian for it,
-# published on GUARDIAN_PORT at F_SERVICE_HOST (the service host the webapp is
-# configured with). GUARDIAN_DIR locates run.sh; it defaults to the sibling
-# guardian directory in the repo but must be overridden (to a host path) when the
-# webapp runs in a container, since the command runs on the host.
-GUARDIAN_DIR = os.environ.get("GUARDIAN_DIR", str(BASE_DIR.parent.parent / "guardian"))
-GUARDIAN_IMAGE = os.environ.get("GUARDIAN_IMAGE", "mlcommons/toy_guardian:latest")
+# Guardian deployment: registering an asset also starts a guardian for it, and the
+# owner picks which kind at registration time. The kinds are not listed here — each
+# one is a folder under GUARDIANS_DIR carrying a run.sh and a guardian.json manifest
+# describing how to launch it, and the webapp discovers them by reading that
+# directory (see app/guardian_registry.py). It defaults to the sibling guardians
+# directory in the repo but must be overridden (to a host path) when the webapp runs
+# in a container, since the commands run on the host.
+GUARDIANS_DIR = os.environ.get(
+    "GUARDIANS_DIR", str(BASE_DIR.parent.parent / "guardians")
+)
+DEFAULT_GUARDIAN_TYPE = os.environ.get("DEFAULT_GUARDIAN_TYPE", "download")
+
+# The port the registration form starts on. The storage service port a PDO
+# guardian also needs is derived from the chosen port rather than configured, so
+# that two guardians on different ports do not collide on one storage port.
 GUARDIAN_PORT = os.environ.get("GUARDIAN_PORT", "7900")
-GUARDIAN_SSERVICE_PORT = os.environ.get("GUARDIAN_SSERVICE_PORT", "7901")
+
+# Where a guardian listens, and the host everyone else uses to reach it. The two
+# differ because binding every interface says nothing about which address is
+# routable, so the owner picks the intent and the launcher derives both:
+#
+#   localhost   bind loopback; reachable as "localhost" (the inference guardian's
+#               case -- its FL client talks to it over loopback)
+#   0.0.0.0     bind every interface; reachable at F_SERVICE_HOST
+#   HOSTNAME    bind every interface; reachable at this machine's hostname
+SERVE_ON_CHOICES = ("localhost", "0.0.0.0", "HOSTNAME")
+DEFAULT_SERVE_ON = "0.0.0.0"
+
+# The mock FL server the inference action submits jobs to, and that the FL client
+# bundled with each inference guardian polls for work.
+FL_SERVER_URL = os.environ.get("FL_SERVER_URL", "http://localhost:7920")
+
+# How the inference guardian's container names the FL server. It is passed to the
+# guardian's run.sh rather than used by the webapp: a container cannot reach a
+# host-published port as "localhost", so this defaults to the host gateway alias
+# run.sh maps in.
+FL_SERVER_URL_FROM_GUARDIAN = os.environ.get(
+    "FL_SERVER_URL_FROM_GUARDIAN", "http://host.docker.internal:7920"
+)
 
 # When the webapp itself runs inside a container it has no Docker access, so it
 # cannot run the guardian directly. Instead it writes the guardian command as a

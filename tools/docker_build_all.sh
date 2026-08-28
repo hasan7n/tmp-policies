@@ -14,9 +14,15 @@ bash pdo_client/build.sh \
     --branch $BRANCH \
     --families "exchange-contract identity-contract authority-contract rego-contract"
 
-bash guardian/build.sh \
+bash guardians/download/build.sh \
     --image mlcommons/toy_guardian:latest \
     --client-image mlcommons/pdo_base_client:latest
+
+bash guardians/inference/build.sh \
+    --image mlcommons/toy_inference_guardian:latest \
+    --client-image mlcommons/pdo_base_client:latest
+
+# guardians/public and fl_server are plain Python processes; nothing to build.
 
 # bash policy_engine/build_pdo_images.sh \
 #     --ledger-image mlcommons/pdo_ledger:latest \
@@ -28,5 +34,6 @@ docker push mlcommons/pdo_toy_asset_registry:latest
 docker push mlcommons/pdo_toy_template_registry:latest
 docker push mlcommons/pdo_base_client:latest
 docker push mlcommons/toy_guardian:latest
+docker push mlcommons/toy_inference_guardian:latest
 # docker push mlcommons/pdo_ledger:latest
 # docker push mlcommons/pdo_services:latest
