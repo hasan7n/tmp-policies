@@ -24,7 +24,7 @@ Policy Fabric is a community-driven effort that provides an architectural bluepr
 
 On the policy processing side, policy-as-code objects encode governance rules, and a Policy Engine evaluates the evidence a user presents against these policy objects. When every policy requirement is met, the policy object issues a short-lived, cryptographically signed capability package authorizing the requested action. On the enforcement side, an Asset Guardian checks only the capability package's signature and scope and applies it — it holds no policy logic of its own.
 
-This has an the following advantages:
+This has the following advantages:
 
 1. **Decoupled governance**: governance can evolve by updating policy objects, without touching the applications that enforce it. An application, following the Asset Guardian design, enforces policies by just consuming a capability package signed by an associated policy object. A capability package is only issued and signed if the encoded governance rules in the associated policy object are satisfied.
 2. **Interoperability and Consistency**: The policy engine, and the notion of policy-as-code objects, constitute a unified layer for processing and encoding governance requirements. Multiple organizations will be able to communicate with the same language/protocol when expressing governance rules, and applications indirectly enforce these governance rules using a common capability-based enforcement design.
@@ -78,7 +78,7 @@ A policy object is described by a Policy Card. A Policy Card acts as a documenta
 
 ![Bespoke policy logic in each platform fragments governance; a shared Policy Card layer restores interoperability.](assets/images/figure-2-policy-card-layer.png)
 
-*Figure 1. Bespoke policy logic in each platform fragments governance; a shared Policy Card layer restores interoperability.*
+*Figure 2. Bespoke policy logic in each platform fragments governance; a shared Policy Card layer restores interoperability.*
 
 #### Policy Card Anatomy
 
@@ -95,7 +95,7 @@ A Policy Card is composed of its identification, the scope it governs, the rules
 | Reference Values Schema | The owner-configured values the rules evaluate evidence against (e.g. allowed countries or institutions), so one card is reused across datasets by re-parameterization. |
 | Capability Granted | operation + parameters: what success produces — the capability package the Asset Guardian enforces without any policy logic of its own. |
 | Codified Representation | The executable rules (e.g. Rego) evaluated against the presented evidence and reference values to reach the allow/deny decision. |
-| Legal & Disclaimers | Legal & Disclaimers |
+| Legal & Disclaimers | The card's legal context: reference-implementation status, liability disclaimers, and any review obligations that apply before the card is relied on. |
 
 ### Credentials
 
@@ -116,9 +116,9 @@ Therefore, below is the flow of a policy evaluation:
 
 #### Credential Format
 
-A Credential in Policy Fabric is a verifiable attestation produced by an evidence source — an external service, a piece of hardware, or a traditional authority such as a human-resources department. Concrete examples include a data steward's cryptographic signature, a payment receipt from a trusted service, an attestation token from a trusted execution environment (TEE), and institutional credentials. Credentials are modeled on the [W3C Verifiable Credentials Data](https://www.w3.org/TR/vc-data-model-2.0/) Model, giving each one a clear issuer, subject, and claims structure.
+A Credential in Policy Fabric is a verifiable attestation produced by an evidence source — an external service, a piece of hardware, or a traditional authority such as a human-resources department. Concrete examples include a data steward's cryptographic signature, a payment receipt from a trusted service, an attestation token from a trusted execution environment (TEE), and institutional credentials. Credentials are modeled on the [W3C Verifiable Credentials Data Model](https://www.w3.org/TR/vc-data-model-2.0/), giving each one a clear issuer, subject, and claims structure.
 
-We define a set of credential types in Policy Fabric. Each type's claims structure can be described by Json Schema. Here is an example showing the AffiliationCredential claims schema:
+We define a set of credential types in Policy Fabric. Each type's claims structure can be described by JSON Schema. Here is an example showing the AffiliationCredential claims schema:
 
 ```json
 {
@@ -148,7 +148,7 @@ We define a set of credential types in Policy Fabric. Each type's claims structu
 The repository contains the policy cards, the credentials, and tools to run the [tutorial](tutorial.md):
 
 ```
-policy-fabric/
+tmp-policies/
 ├── policy_cards/        # Policy Card instances
 ├── credentials/         # Credential type definitions (the evidence vocabulary)
 ├── tools/               # Related to tools to run tutorials or install policy client
@@ -175,13 +175,12 @@ Policy Fabric operationalizes the architecture argued for in an accompanying pos
 The architecture is described in the position paper "Decentralized AI Governance Must Decouple Policy Processing from Capability Enforcement" (submitted to NeurIPS 2026). The submission is anonymized for peer review, so author and venue details are placeholders until publication; update this entry once the paper is public.
 
 ```
-@inproceedings{policyfabric2026,
-  title     = {Decentralized AI Governance Must Decouple Policy
-               Processing from Capability Enforcement},
-  author    = {Anonymous},   % update on publication
-  booktitle = {Proceedings of NeurIPS 2026},
-  year      = {2026},
-  note      = {Anonymous submission; details pending publication}
+@unpublished{policyfabric2026,
+  title  = {Decentralized AI Governance Must Decouple Policy
+            Processing from Capability Enforcement},
+  author = {Anonymous},   % update on publication
+  year   = {2026},
+  note   = {Anonymous submission under peer review; details pending publication}
 }
 ```
 
