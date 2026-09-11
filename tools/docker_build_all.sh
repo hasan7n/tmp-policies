@@ -1,39 +1,54 @@
 set -e
 
-BRANCH=13815b6e9ca9ee2734c4e29a675d6ae8af0dbeca
+# pdo-contracts revision the client image (and therefore the compiled contract
+# binaries) is built from. It must be one that carries rego_token's
+# create_capability op and the guardian request context, since the inference
+# flow issues a capability the FL client redeems later rather than redeeming it
+# inline.
+REPOSITORY=https://github.com/mlcommons/pdo-contracts
+BRANCH=a4323c18a2f9dc3e54652c0a08c9692b2d13dacc
+
+# Bumped together whenever the images are rebuilt, so a new build never
+# overwrites the tag a running deployment already pulled.
+TAG=v2
 
 bash asset_registry/build.sh \
-    --image mlcommons/pdo_toy_asset_registry:latest
+    --image mlcommons/pdo_toy_asset_registry:$TAG
 
 bash template_registry/build.sh \
-    --image mlcommons/pdo_toy_template_registry:latest
+    --image mlcommons/pdo_toy_template_registry:$TAG
 
 bash pdo_client/build.sh \
-    --image mlcommons/pdo_base_client:latest \
-    --repository https://github.com/hasan7n/pdo-contracts \
+    --image mlcommons/pdo_base_client:$TAG \
+    --repository $REPOSITORY \
     --branch $BRANCH \
     --families "exchange-contract identity-contract authority-contract rego-contract"
 
 bash guardians/download/build.sh \
-    --image mlcommons/toy_guardian:latest \
-    --client-image mlcommons/pdo_base_client:latest
+    --image mlcommons/toy_guardian:$TAG \
+    --client-image mlcommons/pdo_base_client:$TAG
 
 bash guardians/inference/build.sh \
-    --image mlcommons/toy_inference_guardian:latest \
-    --client-image mlcommons/pdo_base_client:latest
+    --image mlcommons/toy_inference_guardian:$TAG \
+    --client-image mlcommons/pdo_base_client:$TAG
 
 # guardians/public and fl_server are plain Python processes; nothing to build.
 
-# bash policy_engine/build_pdo_images.sh \
-#     --ledger-image mlcommons/pdo_ledger:latest \
-#     --services-image mlcommons/pdo_services:latest \
-#     --repository https://github.com/hasan7n/pdo-contracts \
-#     --branch $BRANCH
+# The ledger and the services carry the CCF app and the enclaves the client talks
+# to, so they are not independent of the revision above: a client built from one
+# pdo-contracts revision and a ledger built from another disagree about the
+# contract-registration schema, and every contract creation fails. Build all of
+# them from $BRANCH or none of them.
+bash policy_engine/build_pdo_images.sh \
+    --ledger-image mlcommons/pdo_ledger:$TAG \
+    --services-image mlcommons/pdo_services:$TAG \
+    --repository $REPOSITORY \
+    --branch $BRANCH
 
-docker push mlcommons/pdo_toy_asset_registry:latest
-docker push mlcommons/pdo_toy_template_registry:latest
-docker push mlcommons/pdo_base_client:latest
-docker push mlcommons/toy_guardian:latest
-docker push mlcommons/toy_inference_guardian:latest
-# docker push mlcommons/pdo_ledger:latest
-# docker push mlcommons/pdo_services:latest
+docker push mlcommons/pdo_toy_asset_registry:$TAG
+docker push mlcommons/pdo_toy_template_registry:$TAG
+docker push mlcommons/pdo_base_client:$TAG
+docker push mlcommons/toy_guardian:$TAG
+docker push mlcommons/toy_inference_guardian:$TAG
+docker push mlcommons/pdo_ledger:$TAG
+docker push mlcommons/pdo_services:$TAG

@@ -43,6 +43,7 @@ LAUNCH_VALUES = (
     "storage_port",  # the paired PDO storage service port
     "image",  # Docker image, from the manifest's image block
     "fl_server_url",  # FL server, as addressable from inside the guardian
+    "fl_client_id",  # name the guardian's FL client claims its jobs under
 )
 
 

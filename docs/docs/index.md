@@ -145,7 +145,7 @@ We define a set of credential types in Policy Fabric. Each type's claims structu
 
 ### Repository Structure
 
-The repository contains the policy cards, the credentials, and tools to run the [tutorial](tutorial.md):
+The repository contains the policy cards, the credentials, and tools to run the [tutorials](tutorial.md):
 
 ```
 policy-fabric/
@@ -162,9 +162,12 @@ policy-fabric/
 - **You retain responsibility.** Operators remain responsible for verifying that their own legal and regulatory obligations are satisfied in their jurisdiction.
 - **Licensing.** Distributed under the repository's open-source license (see LICENSE). Replace this clause with the chosen license terms before release.
 
-### Hands-on Tutorial
+### Hands-on Tutorials
 
-See the [Hands-On Tutorial](tutorial.md) for a full, step-by-step walkthrough of policy-gated data sharing in the web UI.
+Two full, step-by-step walkthroughs in the web UI, showing the same architecture gating two different operations:
+
+- [Download](tutorial.md) — the data leaves, encrypted to a requester the policy checked. Start here.
+- [Inference](tutorial_inference.md) — the data stays put and approved code comes to it. Two policies: one that checks what the code is for, and one that checks who is running it and holds them to a claim their own wallet signed.
 
 ## Research and Citation
 

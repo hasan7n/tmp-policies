@@ -22,7 +22,7 @@ import logging
 
 import requests
 
-from . import fl_client, pdo_runner, registry_client, session_keys
+from . import fl_client, guardian_launcher, pdo_runner, registry_client, session_keys
 from .did_utils import make_did, parse_did
 from .views._streaming import SkipStep
 
@@ -243,6 +243,12 @@ class InferenceGuardianActionRunner(GuardianActionRunner):
         # The asset registry keyed this identity contract under its DID when the
         # script was registered, so the DID is all that is needed to find it.
         self.script_asset_did = make_did(script_wallet)
+        # The capability this flow mints is only redeemable at this asset's own
+        # guardian, so the job is addressed to the FL client beside it rather than
+        # left for whichever client polls first.
+        self.fl_client_id = guardian_launcher.fl_client_id(
+            self.metadata.get("guardian_url", ""), self.metadata.get("guardian_port", "")
+        )
 
     def steps(self):
         def fetch_script(ctx):
@@ -264,6 +270,7 @@ class InferenceGuardianActionRunner(GuardianActionRunner):
                 ctx["capability"],
                 script_name=self.script_asset_did,
                 asset_did=self.asset_did,
+                target_client=self.fl_client_id,
             )
             return {"detail": f"job {ctx['job_id']}"}
 

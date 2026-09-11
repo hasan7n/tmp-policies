@@ -19,7 +19,15 @@ from ._helpers import (
 
 logger = logging.getLogger(__name__)
 
+# What the Create Issuer form offers. A wallet key authority is not here: one is
+# created for you alongside every external key authority, never on its own.
 ISSUER_TYPES = ("manual", "external_key_authority")
+
+KIND_LABELS = {
+    "manual": "Manual",
+    "external_key_authority": "External Key Authority",
+    "wallet_key_authority": "Wallet Key Authority",
+}
 
 
 def _user_manual_issuer_ids(user_name):
@@ -29,7 +37,8 @@ def _user_manual_issuer_ids(user_name):
     The signature_authority contract type is also reused as the identity
     backing an asset, so the same family appears for both. The asset registry
     is the canonical place that says "this id is an asset," so we use it to
-    subtract.
+    subtract. The two authorities need no such subtraction: nothing else is
+    registered under their families.
     """
     sa_ids = ledger_client.list_signature_authority_ids(user_name)
     if not sa_ids:
@@ -44,12 +53,25 @@ def _user_manual_issuer_ids(user_name):
     return [cid for cid in sa_ids if cid not in asset_ids]
 
 
+def _issuer_ids_by_kind(user_name):
+    """This user's issuer contract ids, grouped by kind."""
+    return {
+        "manual": _user_manual_issuer_ids(user_name),
+        "external_key_authority": ledger_client.list_external_key_authority_ids(
+            user_name
+        ),
+        "wallet_key_authority": ledger_client.list_wallet_key_authority_ids(user_name),
+    }
+
+
 def _issuer_card(contract_id, kind, name=None):
     base_did = make_did(contract_id)
     # A manual issuer always signs from its one fixed context, so the DID
     # shown/copied for it is the one credentials are actually issued under —
-    # callers never need to know a "signing context" exists at all. An
-    # external_key_authority has no such context, so its DID is the bare one.
+    # callers never need to know a "signing context" exists at all. The two
+    # authorities also sign from a fixed context of their own, but the bare DID
+    # names their root key, and a trusted-issuer registration made against the
+    # root verifies anything signed below it — so the bare DID is what is shown.
     display_did = (
         make_did(contract_id, settings.POC_SIGNING_CONTEXT_NAME)
         if kind == "manual"
@@ -61,33 +83,27 @@ def _issuer_card(contract_id, kind, name=None):
         "name": name if name is not None else naming.get_name(base_did),
         "did": display_did,
         "kind": kind,
-        "kind_label": (
-            "External Key Authority" if kind == "external_key_authority" else "Manual"
-        ),
+        "kind_label": KIND_LABELS.get(kind, kind),
     }
 
 
 def _issuer_cards(user_name):
-    manual_ids = _user_manual_issuer_ids(user_name)
-    eka_ids = ledger_client.list_external_key_authority_ids(user_name)
-    names = naming.get_names([make_did(cid) for cid in manual_ids + eka_ids])
-    cards = [
-        _issuer_card(cid, "manual", names[make_did(cid)]) for cid in manual_ids
+    by_kind = _issuer_ids_by_kind(user_name)
+    every_id = [cid for ids in by_kind.values() for cid in ids]
+    names = naming.get_names([make_did(cid) for cid in every_id])
+    return [
+        _issuer_card(cid, kind, names[make_did(cid)])
+        for kind, ids in by_kind.items()
+        for cid in ids
     ]
-    cards += [
-        _issuer_card(cid, "external_key_authority", names[make_did(cid)])
-        for cid in eka_ids
-    ]
-    return cards
 
 
 def _issuer_kind(user_name, contract_id):
-    """Return this issuer's kind ("manual" / "external_key_authority"), or
-    None if ``contract_id`` isn't one of this user's issuers."""
-    if contract_id in ledger_client.list_external_key_authority_ids(user_name):
-        return "external_key_authority"
-    if contract_id in _user_manual_issuer_ids(user_name):
-        return "manual"
+    """Return this issuer's kind, or None if ``contract_id`` isn't one of this
+    user's issuers."""
+    for kind, ids in _issuer_ids_by_kind(user_name).items():
+        if contract_id in ids:
+            return kind
     return None
 
 
@@ -120,6 +136,20 @@ class IssuersListView(BaseView):
             return redirect_with_msg("/issuers/", "Select an issuer type.", "error")
 
         user_name = AppConfig.get_instance().public_key
+
+        # An external key authority arrives with a wallet key authority behind it,
+        # and the creation call returns only the one you asked for. Which contract
+        # the other is, is answered by noting what was not there a moment ago.
+        # The alternative — asking the new authority which issuer it trusts —
+        # reads contract state, and that read is served from a 30s cache keyed on
+        # the contract's save file, so the first read after creation can pin a
+        # pre-registration view of the contract for half a minute. The ledger's
+        # own contract index has no such cache and is written when a contract is
+        # registered, well before this call returns.
+        wkas_before = set()
+        if issuer_type == "external_key_authority":
+            wkas_before = set(ledger_client.list_wallet_key_authority_ids(user_name))
+
         try:
             if issuer_type == "manual":
                 contract_id = pdo_runner.create_manual_issuer(name, user_name)
@@ -134,6 +164,26 @@ class IssuersListView(BaseView):
             )
 
         naming.set_name(make_did(contract_id), name)
+
+        # Name it after its owner so the two read as a pair in the list; unnamed
+        # it would still be listed, just as UNKNOWN.
+        if issuer_type == "external_key_authority":
+            try:
+                new_wkas = (
+                    set(ledger_client.list_wallet_key_authority_ids(user_name))
+                    - wkas_before
+                )
+                for wka_id in new_wkas:
+                    naming.set_name(make_did(wka_id), f"{name} (wallet keys)")
+                if not new_wkas:
+                    logger.warning(
+                        "No new wallet key authority appeared for %s; it will be "
+                        "listed unnamed",
+                        contract_id,
+                    )
+            except Exception:
+                logger.exception("Failed to name the wallet key authority")
+
         return redirect_with_msg("/issuers/", f'Issuer "{name}" created.', "success")
 
 

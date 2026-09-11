@@ -5,7 +5,7 @@
   "order": 30,
   "image": {
     "env": "INFERENCE_GUARDIAN_IMAGE",
-    "default": "mlcommons/toy_inference_guardian:latest"
+    "default": "mlcommons/toy_inference_guardian:v2"
   },
   "options": {
     "--image": "image",
@@ -14,6 +14,7 @@
     "--sservice-port": "storage_port",
     "--guardian-host": "advertised_host",
     "--data-path": "data_path",
-    "--fl-server-url": "fl_server_url"
+    "--fl-server-url": "fl_server_url",
+    "--fl-client-id": "fl_client_id"
   }
 }

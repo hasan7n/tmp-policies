@@ -11,6 +11,9 @@ ASSET_REGISTRY_URL=""
 TEMPLATE_REGISTRY_URL=""
 SEED_SCRIPT=""
 CSRF_TRUSTED_ORIGINS=""
+# The FL server runs on the host, so the containerized webapp reaches it through
+# the host-gateway alias mapped in below rather than as "localhost".
+FL_SERVER_URL="http://host.docker.internal:7920"
 
 usage() {
     cat <<EOF
@@ -34,6 +37,9 @@ Options:
   -t, --template-registry-url URL Template registry URL (required)
   -e, --seed PATH                Seed script (a PDO flow) on the host, run after
                                  bootstrap and before the dev server (optional)
+  -F, --fl-server-url URL        FL server the inference action submits jobs to,
+                                 as addressable from inside this container
+                                 (default: $FL_SERVER_URL)
   -o, --csrf-trusted-origins ORIGINS
                                  Comma-separated origins to add to Django's CSRF
                                  trust list, for when the port is reached through
@@ -56,6 +62,7 @@ while [ $# -gt 0 ]; do
         -a|--asset-registry-url)   ASSET_REGISTRY_URL="$2"; shift 2 ;;
         -t|--template-registry-url) TEMPLATE_REGISTRY_URL="$2"; shift 2 ;;
         -e|--seed)                 SEED_SCRIPT="$2"; shift 2 ;;
+        -F|--fl-server-url)        FL_SERVER_URL="$2"; shift 2 ;;
         -o|--csrf-trusted-origins) CSRF_TRUSTED_ORIGINS="$2"; shift 2 ;;
         -h|--help)                 usage; exit 0 ;;
         *)                         echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
@@ -78,12 +85,26 @@ done
 # Ensure the host scratch dir exists so the bind mount has a source.
 mkdir -p "$SCRATCH_DIR"
 
+# Docker creates a missing bind-mount source as an empty *directory*, so
+# starting before the ledger has written its cert does not fail here -- it fails
+# much later, as an IsADirectoryError inside bootstrap, and leaves a directory
+# named networkcert.pem behind that breaks every subsequent run. Check first.
+for f in "$LEDGER_CERT_PATH" "$SITE_TOML_SOURCE"; do
+    [ -f "$f" ] || { echo "Not a file: $f (has the policy engine finished starting?)" >&2; exit 1; }
+done
+[ -d "$USER_KEYS_FOLDER" ] || { echo "Not a directory: $USER_KEYS_FOLDER" >&2; exit 1; }
+
 # The webapp runs in a container with no Docker access, so it cannot start
 # guardians itself. Instead it writes each guardian start command as a shell
 # script into a directory shared with the host (a subdir of the scratch mount);
 # this launcher watches that directory and runs each script on the host. The
 # command it writes invokes the run.sh of whichever guardian the owner chose, so
 # the webapp is told each guardian directory's host path.
+#
+# It needs that directory for two different things, though: the *command* it
+# writes runs on the host, but the *manifests* it discovers guardians from are
+# read inside the container (app/guardian_registry.py). So the directory is also
+# mounted, at the same absolute path, and one value serves both.
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 REPO_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
 GUARDIANS_DIR_HOST="$REPO_ROOT/guardians"
@@ -105,13 +126,16 @@ fi
 # PDO_CONTRACTS_ROOT come from the image, so run.sh needs no --install-root.
 docker run --rm --user "$(id -u):0" --name policies_web_client \
     -p $INTERFACE:$PORT:8000 \
+    --add-host host.docker.internal:host-gateway \
     --env CONTAINERIZED_DEPLOYMENT=true \
     --env CSRF_TRUSTED_ORIGINS="$CSRF_TRUSTED_ORIGINS" \
     --env GUARDIANS_DIR="$GUARDIANS_DIR_HOST" \
+    --env FL_SERVER_URL="$FL_SERVER_URL" \
     --volume ${LEDGER_CERT_PATH}:/tmp/networkcert.pem \
     --volume ${SITE_TOML_SOURCE}:/tmp/site.toml \
     --volume ${USER_KEYS_FOLDER}:/tmp/user_keys \
     --volume ${SCRATCH_DIR}:/tmp/scratch \
+    --volume ${GUARDIANS_DIR_HOST}:${GUARDIANS_DIR_HOST}:ro \
     "${SEED_MOUNT[@]}" \
     $WEBAPP_IMAGE /webapp/run.sh \
         --interface 0.0.0.0 --port 8000 \

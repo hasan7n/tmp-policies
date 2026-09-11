@@ -15,6 +15,7 @@ Helpers mutate the shared state when loading contexts, so all calls run
 under a single global lock.
 """
 
+import base64
 import json
 import logging
 import os
@@ -33,6 +34,7 @@ import pdo.identity.decentralized.identity as identity_contract
 import pdo.identity.decentralized.signature_authority as signature_authority
 import pdo.rego.decentralized.rego_policy_agent as rego_policy_agent
 import pdo.rego.decentralized.rego_token as rego_token
+from pdo.identity.plugins.identity import cmd_sign_with_contract_key
 
 from .pdo_state import get_state
 
@@ -40,6 +42,11 @@ logger = logging.getLogger(__name__)
 _op_lock = threading.Lock()
 
 PUBLIC_KEY_CREDENTIAL_TYPE = "publicKeyCredential"
+
+# What a proof made with a contract's own key says about itself. PDO signs with
+# ECDSA over secp384r1 (PDO_DEFAULT_SIGCURVE), which is the scheme every other
+# credential in this system is signed with too.
+CONTRACT_KEY_PROOF_TYPE = "ecdsa_secp384r1"
 
 
 def _tmp_json(data):
@@ -188,6 +195,73 @@ def sign_credential(contract_id, signing_context_path, credential_dict, user_nam
     finally:
         _safe_unlink(cred_path)
         _safe_unlink(signed_path)
+
+
+def sign_credential_with_contract_key(contract_id, credential_dict, user_name):
+    """Sign a credential with a contract's own, ledger-attested key.
+
+    This is how a *wallet* issues a credential. A wallet is a plain
+    ``identity.identity`` contract, so it has no ``sign_credential`` — that op
+    belongs to the signature_authority family, and it signs from a registered
+    signing context. What every contract does have is the key pair PDO generates
+    for it at creation, whose public half the ledger records in the contract's
+    metadata; ``sign_with_contract_key`` signs with the private half.
+
+    That is the same key a ``WalletVerifyingKeyCredential`` names, which is what
+    makes a self-issued credential worth anything: the policy checks its signature
+    against the key an authority independently attested for that wallet, rather
+    than against a registered issuer (see the FL-IS policy's
+    ``vc_supplied_verification_tasks``).
+
+    The verifiable credential is assembled here rather than inside the contract.
+    The signature covers the base64 serialized credential, exactly as
+    ``VerifiableCredential::build`` computes it, so what comes back verifies by
+    the same code path as anything a contract signed itself.
+
+    Returns the signed VC dict.
+    """
+    state = get_state()
+
+    serialized = json.dumps(credential_dict, separators=(",", ":"))
+    b64_credential = base64.b64encode(serialized.encode("utf-8")).decode("ascii")
+
+    # The command signs the file's bytes, so the file holds the base64 text and
+    # nothing else -- a trailing newline would be signed along with it.
+    message_path = _tmp_path(".txt")
+    signature_path = _tmp_path(".json")
+    try:
+        with open(message_path, "w") as f:
+            f.write(b64_credential)
+        with _op_lock:
+            # The decentralized modules wrap one command each and none wraps this
+            # one; the context they build is identical for every op on a contract
+            # addressed by id, so their builder is reused rather than copied.
+            signature_authority._invoke_signature_authority(
+                state,
+                contract_id,
+                user_name,
+                cmd_sign_with_contract_key,
+                message_file=message_path,
+                signature_file=signature_path,
+            )
+        with open(signature_path) as f:
+            proof_value = f.read().strip()
+    finally:
+        _safe_unlink(message_path)
+        _safe_unlink(signature_path)
+
+    return {
+        "serializedCredential": b64_credential,
+        "proof": {
+            "type": CONTRACT_KEY_PROOF_TYPE,
+            "proofPurpose": "assertion",
+            # The contract key sits under no signing context, so the path is
+            # empty. A verifier of this credential is handed the key itself
+            # rather than deriving it down a registered issuer's tree.
+            "verificationMethod": {"id": contract_id, "context_path": []},
+            "proofValue": proof_value,
+        },
+    }
 
 
 # ============================================================

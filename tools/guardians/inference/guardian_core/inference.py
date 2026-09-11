@@ -24,13 +24,19 @@ class InferenceOperation:
     """
 
     # -----------------------------------------------------------------
+    # Only the digest is required. The channel key is optional because this
+    # operation does not read it (see __call__) and because a policy is entitled
+    # not to produce one: the FL policies stand on their own, and one that only
+    # governs the code -- FL-DS -- says nothing about the requester and so has no
+    # channel key to carry. Requiring it here would make such a policy
+    # unsatisfiable for a reason that has nothing to do with what it decides.
     __schema__ = {
         "type": "object",
         "properties": {
             "channel_key": {"type": "string"},
             "script_digest": {"type": "string"},
         },
-        "required": ["channel_key", "script_digest"],
+        "required": ["script_digest"],
     }
 
     __request_context_schema__ = {
@@ -67,9 +73,9 @@ class InferenceOperation:
             )
             return None
 
-        # The channel key the policy carried is not used yet. The data goes back to
-        # an FL client on this host rather than across the network, so it is
+        # The channel key, when a policy carried one, is not used yet. The data goes
+        # back to an FL client on this host rather than across the network, so it is
         # returned in the clear; encrypting it to the channel key is what makes this
-        # safe to serve off-host.
+        # safe to serve off-host, and is what would make the key required.
         logger.info("releasing data for authorized script %s", authorized_digest)
         return self.data

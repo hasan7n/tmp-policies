@@ -58,7 +58,10 @@
                 <small>
                     Which addresses the guardian listens on. An inference guardian is
                     reached over the loopback interface by the FL client bundled with it,
-                    so <strong>localhost</strong> is enough for it.
+                    so <strong>localhost</strong> is enough for it — but only when this
+                    app runs on the same host. Running in a container, as it does in the
+                    tutorials, it has to reach the guardian too, so leave this at
+                    <strong>0.0.0.0</strong>.
                 </small>
             </div>
 

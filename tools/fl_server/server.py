@@ -6,7 +6,10 @@ metrics a client reports back. It exists so the inference flow has a realistic
 shape -- the requester hands work to an FL server, and the FL client sitting
 beside the data pulls that work down -- without a real FL framework in the way.
 
-Jobs live in memory and are handed to clients in submission order.
+Jobs live in memory and are handed to clients in submission order. A job may name
+the client that must run it: a capability is minted for one guardian and is worth
+nothing at any other, so once more than one data holder polls this server, "the
+oldest pending job" is the wrong answer to "what should this client run?".
 
 | Method | Path                    | Body / query                       | Returns                        |
 |--------|-------------------------|------------------------------------|--------------------------------|
@@ -38,19 +41,26 @@ STATUS_FAILED = "failed"
 
 
 class JobStore:
-    """In-memory job queue, FIFO across all clients.
+    """In-memory job queue, FIFO within what a client is allowed to claim.
 
     A job moves pending -> running when a client claims it, then to complete or
     failed when that client reports back. Nothing is retried and nothing expires:
     a client that claims a job and dies leaves it running forever, which is
     acceptable for a demo and would not be for anything else.
+
+    ``target_client`` addresses a job to one client. The submitter sets it to the
+    FL client running beside the guardian its capability was minted for; any other
+    client would only carry that capability to a guardian that refuses it. A job
+    without one is open to whoever asks first.
     """
 
     def __init__(self):
         self._jobs = OrderedDict()
         self._lock = threading.Lock()
 
-    def submit(self, *, script, capability, script_name=None, asset_did=None):
+    def submit(
+        self, *, script, capability, script_name=None, asset_did=None, target_client=None
+    ):
         job_id = uuid.uuid4().hex
         with self._lock:
             self._jobs[job_id] = {
@@ -60,28 +70,37 @@ class JobStore:
                 "capability": capability,
                 "script_name": script_name,
                 "asset_did": asset_did,
+                "target_client": target_client,
                 "client_id": None,
                 "metrics": None,
                 "error": None,
             }
-        logger.info("job %s submitted (%s)", job_id, script_name or "unnamed script")
+        logger.info(
+            "job %s submitted (%s) for %s",
+            job_id,
+            script_name or "unnamed script",
+            target_client or "any client",
+        )
         return job_id
 
     def claim_next(self, client_id):
-        """Hand the oldest pending job to a client, or return ``None``."""
+        """Hand a client the oldest pending job it may run, or return ``None``."""
         with self._lock:
             for job in self._jobs.values():
-                if job["status"] == STATUS_PENDING:
-                    job["status"] = STATUS_RUNNING
-                    job["client_id"] = client_id
-                    logger.info("job %s claimed by %s", job["job_id"], client_id)
-                    return {
-                        "job_id": job["job_id"],
-                        "script": job["script"],
-                        "capability": job["capability"],
-                        "script_name": job["script_name"],
-                        "asset_did": job["asset_did"],
-                    }
+                if job["status"] != STATUS_PENDING:
+                    continue
+                if job["target_client"] and job["target_client"] != client_id:
+                    continue
+                job["status"] = STATUS_RUNNING
+                job["client_id"] = client_id
+                logger.info("job %s claimed by %s", job["job_id"], client_id)
+                return {
+                    "job_id": job["job_id"],
+                    "script": job["script"],
+                    "capability": job["capability"],
+                    "script_name": job["script_name"],
+                    "asset_did": job["asset_did"],
+                }
         return None
 
     def report(self, job_id, *, metrics=None, error=None):
@@ -170,6 +189,7 @@ class FLServerHandler(BaseHTTPRequestHandler):
             capability=capability,
             script_name=body.get("script_name"),
             asset_did=body.get("asset_did"),
+            target_client=body.get("target_client"),
         )
         self._respond({"job_id": job_id, "status": STATUS_PENDING}, HTTPStatus.CREATED)
 

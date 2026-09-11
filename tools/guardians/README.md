@@ -19,7 +19,7 @@ in it. A guardian is any subfolder holding both a `run.sh` and a `guardian.json`
   "title": "Download",
   "description": "Releases the data encrypted to the requester's session key.",
   "order": 20,
-  "image": { "env": "GUARDIAN_IMAGE", "default": "mlcommons/toy_guardian:latest" },
+  "image": { "env": "GUARDIAN_IMAGE", "default": "mlcommons/toy_guardian:v2" },
   "options": {
     "--image": "image",
     "--interface": "bind_interface",
@@ -51,6 +51,7 @@ actually takes:
 | `storage_port`     | the paired PDO storage service port (`port` + 1)       |
 | `image`            | the image resolved from the `image` block              |
 | `fl_server_url`    | FL server, as addressable from inside the guardian     |
+| `fl_client_id`     | name this guardian's FL client claims its jobs under   |
 
 A guardian needing something outside this vocabulary also needs a new entry in
 `LAUNCH_VALUES` in `pdo_client/webapp/app/guardian_registry.py`.

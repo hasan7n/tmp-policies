@@ -5,11 +5,11 @@ INTERFACE="$(hostname -I | awk '{print $1}')"
 # the top of the tmp-policies tree (one level above this tools/ directory).
 TMP_POLICIES_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 bash asset_registry/run_docker.sh \
-    --image mlcommons/pdo_toy_asset_registry:latest \
+    --image mlcommons/pdo_toy_asset_registry:v2 \
     --interface $INTERFACE \
     --port 8001 &
 bash template_registry/run_docker.sh \
-    --image mlcommons/pdo_toy_template_registry:latest \
+    --image mlcommons/pdo_toy_template_registry:v2 \
     --interface $INTERFACE \
     --port 8002 \
     --credentials-dir "$TMP_POLICIES_DIR/credentials" \

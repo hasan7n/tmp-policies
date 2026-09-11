@@ -48,6 +48,14 @@ nothing, so the policy checks its signature against the verifying key carried by
 what turns a self-assertion into something a policy can rely on, and it is the
 mechanism the parent DUOs never needed.
 
+Concretely, the wallet signs with `sign_with_contract_key` — the key PDO generates
+for every contract and the ledger records in that contract's metadata. That is the
+same key the `wallet_key_authority` reads off the ledger and puts in the
+`WalletVerifyingKeyCredential`, which is why the two line up. The policy hands the
+key back to the contract in `vc_supplied_verification_tasks`, and the contract
+checks the signature against it directly instead of walking a registered issuer's
+key tree.
+
 ## Testing
 
 ```bash
@@ -62,3 +70,8 @@ their operations are merged into one capability.
 `run_combination_test.sh` checks that merge for the policies here by evaluating each
 in isolation and then combining the results the way `rego_policy_agent` does — the
 only way to exercise it without deploying the contract.
+
+Both policies are also exercised against a live deployment, end to end through the
+web UI, by `tools/tests/run_webui_inference_test.sh` — the automation of
+[the inference tutorial](../../docs/docs/tutorial_inference.md), whose two parts
+are FL-DS and FL-IS.

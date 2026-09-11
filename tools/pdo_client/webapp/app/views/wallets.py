@@ -1,10 +1,11 @@
+import json
 import logging
 
 from django.http import Http404
 from django.shortcuts import render
 
-from .. import ledger_client, naming, pdo_runner
-from ..did_utils import make_did
+from .. import ledger_client, naming, pdo_runner, registry_client
+from ..did_utils import make_did, parse_did
 from ..models import AppConfig
 from ..url_safe_id import decode_cid, encode_cid
 from ._helpers import (
@@ -87,6 +88,17 @@ class WalletDetailView(BaseView):
             logger.exception("Failed to list wallet VCs")
             vcs_error = str(e)
 
+        # A wallet can vouch for something itself (see WalletSignCredentialEndpoint),
+        # and the templates are what say which claims that assertion may carry.
+        templates, templates_error = [], None
+        try:
+            templates = registry_client.list_credential_templates()
+            for t in templates:
+                t["claims_schema_json"] = json.dumps(t.get("claims_schema") or {})
+        except Exception as e:
+            logger.exception("Failed to fetch credential templates")
+            templates_error = str(e)
+
         return render(
             request,
             "wallets/detail.html",
@@ -94,6 +106,8 @@ class WalletDetailView(BaseView):
                 "wallet": wallet,
                 "vcs": vcs,
                 "vcs_error": vcs_error,
+                "templates": templates,
+                "templates_error": templates_error,
             },
         )
 
@@ -114,6 +128,58 @@ class WalletAddVCEndpoint(JsonView):
 
         pdo_runner.wallet_add_vc(contract_id, vc, user_name)
         return {"ok": True, "message": "Credential added."}
+
+
+class WalletSignCredentialEndpoint(JsonView):
+    """POST {template_type, subject_did, claims} — the wallet signs a credential
+    itself and stores it in the subject's contract.
+
+    This is a wallet asserting something in its own name, not an authority
+    vouching for someone else, so it is signed with the wallet's own contract key
+    rather than from a signing context (see
+    ``pdo_runner.sign_credential_with_contract_key``). Taken alone that is worth
+    nothing — anyone can claim anything about themselves. It becomes evidence when
+    a policy checks the signature against a key some authority attested for this
+    wallet, which is exactly what FL-IS does with a ``ScriptOwnershipCredential``:
+    the wallet claims the script, and the claim only counts because the same
+    wallet's key is independently vouched for.
+
+    The credential is stored in whatever contract the subject DID names — for an
+    ownership claim, the script asset, so the claim travels with the thing it is
+    about.
+    """
+
+    def handle(self, request, data, cid_url):
+        contract_id = decode_cid(cid_url)
+        user_name = AppConfig.get_instance().public_key
+        _require_user_wallet(user_name, contract_id)
+
+        template_type, subject_did = require(data, "template_type", "subject_did")
+        claims = data.get("claims") or {}
+        if not isinstance(claims, dict):
+            raise ValidationError("'claims' must be a JSON object")
+
+        subject_contract_id, _ = parse_did(subject_did)
+        credential = {
+            "type": [template_type],
+            # The bare DID: the contract key sits under no signing context, and a
+            # policy matching this issuer against other credentials about the same
+            # wallet is matching bare DIDs.
+            "issuer": {"id": make_did(contract_id)},
+            "credentialSubject": {
+                "subject": {"id": make_did(subject_contract_id)},
+                "claims": claims,
+            },
+        }
+
+        signed_vc = pdo_runner.sign_credential_with_contract_key(
+            contract_id, credential, user_name
+        )
+        pdo_runner.wallet_add_vc(subject_contract_id, signed_vc, user_name)
+        return {
+            "ok": True,
+            "message": f"Credential signed by this wallet and stored in {subject_did}.",
+        }
 
 
 class WalletUpdateNameEndpoint(JsonView):

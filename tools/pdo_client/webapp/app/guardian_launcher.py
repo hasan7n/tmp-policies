@@ -50,6 +50,19 @@ def resolve_serve_on(serve_on):
     raise ValueError(f"unknown serve_on: {serve_on!r}")
 
 
+def fl_client_id(host, port):
+    """The name an FL client beside a guardian on ``host:port`` answers to.
+
+    An inference guardian ships with an FL client, and a job for that guardian is
+    addressed to that client (see ``app.fl_client``). Both ends need the same name
+    for one guardian: the launcher passes it in at deploy time, and the consumer
+    flow reads it back off the asset's registry record. Deriving it from the
+    guardian's own address is what keeps those two agreeing without either side
+    storing anything extra.
+    """
+    return f"{host}:{port}"
+
+
 def _storage_port(port):
     """The PDO storage service port that pairs with a guardian on ``port``.
 
@@ -76,6 +89,7 @@ def launch_values(manifest, data_path, *, serve_on, port):
         "storage_port": str(_storage_port(port)),
         "image": manifest.image,
         "fl_server_url": settings.FL_SERVER_URL_FROM_GUARDIAN,
+        "fl_client_id": fl_client_id(advertised_host, port),
     }
 
 

@@ -24,6 +24,7 @@ from .views.issuers import (
 from .views.wallets import (
     WalletAddVCEndpoint,
     WalletDetailView,
+    WalletSignCredentialEndpoint,
     WalletsListView,
     WalletUpdateNameEndpoint,
 )
@@ -111,6 +112,11 @@ urlpatterns = [
         "api/wallets/<str:cid_url>/add-vc/",
         WalletAddVCEndpoint.as_view(),
         name="api_wallet_add_vc",
+    ),
+    path(
+        "api/wallets/<str:cid_url>/sign-credential/",
+        WalletSignCredentialEndpoint.as_view(),
+        name="api_wallet_sign_credential",
     ),
     path(
         "api/wallets/<str:cid_url>/update-name/",

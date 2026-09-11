@@ -5,7 +5,7 @@
   "order": 20,
   "image": {
     "env": "GUARDIAN_IMAGE",
-    "default": "mlcommons/toy_guardian:latest"
+    "default": "mlcommons/toy_guardian:v2"
   },
   "options": {
     "--image": "image",

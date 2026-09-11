@@ -20,13 +20,20 @@ def _url(path):
     return f"{settings.FL_SERVER_URL.rstrip('/')}{path}"
 
 
-def submit_job(script, capability, *, script_name=None, asset_did=None):
-    """Queue an inference job. Returns the job id."""
+def submit_job(script, capability, *, script_name=None, asset_did=None, target_client=None):
+    """Queue an inference job. Returns the job id.
+
+    ``target_client`` names the FL client that must run it. The capability was
+    minted for one guardian, so the only client that can redeem it is the one
+    sitting beside that guardian; leaving the job open would let another data
+    holder's client claim work it can only fail.
+    """
     payload = {
         "script": script,
         "capability": capability,
         "script_name": script_name,
         "asset_did": asset_did,
+        "target_client": target_client,
     }
     resp = requests.post(_url("/jobs"), json=payload, timeout=30)
     resp.raise_for_status()

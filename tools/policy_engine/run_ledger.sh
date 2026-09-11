@@ -39,9 +39,12 @@ done
 [ -n "$LEDGER_PORT" ]                || { echo "Missing required option: -p/--port" >&2; usage >&2; exit 1; }
 [ "$LEDGER_PORT" = "6600" ]          || { echo "Invalid -p/--port: must be 6600 (got '$LEDGER_PORT')" >&2; exit 1; }
 
-# Cleanup
+# Cleanup. The container writes its network keys into this directory as its own
+# uid (1000), which is not necessarily the host user's, so the transfer
+# directory is opened up rather than left at the host user's default mode.
 rm -rf ${LEDGER_WS}
 mkdir -p ${LEDGER_WS}/ccf/keys
+chmod -R 0777 ${LEDGER_WS}
 
 # Run ledger
 docker run --rm --network host --name ccf_container \

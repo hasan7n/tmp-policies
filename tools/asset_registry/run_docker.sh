@@ -31,5 +31,10 @@ done
 [ -n "$INTERFACE" ]            || { echo "Missing required option: -n/--interface" >&2; usage >&2; exit 1; }
 [ -n "$PORT" ]                 || { echo "Missing required option: -p/--port" >&2; usage >&2; exit 1; }
 
+# Replace any registry already running under this name, the way the guardians
+# do, so a restart onto a new image does not fail on the name and leave the old
+# container answering on the port.
+docker rm -f asset_registry_container >/dev/null 2>&1 || true
+
 docker run --rm --user "$(id -u):0" --name asset_registry_container \
     -p $INTERFACE:$PORT:8000 $ASSET_REGISTRY_IMAGE
