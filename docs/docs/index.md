@@ -167,7 +167,7 @@ policy-fabric/
 Two full, step-by-step walkthroughs in the web UI, showing the same architecture gating two different operations:
 
 - [Download](tutorial.md) — the data leaves, encrypted to a requester the policy checked. Start here.
-- [Inference](tutorial_inference.md) — the data stays put and approved code comes to it. Two policies: one that checks what the code is for, and one that checks who is running it and holds them to a claim their own wallet signed.
+- [Inference](tutorial_inference.md) — the data stays put and approved code comes to it, at **two hospitals at once**. One hospital gates on what the code is for; the other gates on that *and* on who is running it, holding them to a claim their own wallet signed. Each site decides for itself, on the same request, in a single federated round.
 
 ## Research and Citation
 

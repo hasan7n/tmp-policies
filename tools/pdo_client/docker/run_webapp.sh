@@ -111,6 +111,11 @@ GUARDIANS_DIR_HOST="$REPO_ROOT/guardians"
 GUARDIAN_WATCH_DIR="$SCRATCH_DIR/guardian_requests"
 mkdir -p "$GUARDIAN_WATCH_DIR"
 
+# The FL server's run.sh goes through the same watcher, for the one case where the
+# webapp starts a server rather than joining one. Only its host path is needed --
+# the command runs out there, so nothing reads this file in here.
+FL_SERVER_DIR_HOST="$REPO_ROOT/fl_server"
+
 # Optional seed: bind-mount the host script onto a fixed container path and
 # forward it to run.sh. Both arrays are empty when no seed was requested.
 SEED_MOUNT=()
@@ -130,6 +135,7 @@ docker run --rm --user "$(id -u):0" --name policies_web_client \
     --env CONTAINERIZED_DEPLOYMENT=true \
     --env CSRF_TRUSTED_ORIGINS="$CSRF_TRUSTED_ORIGINS" \
     --env GUARDIANS_DIR="$GUARDIANS_DIR_HOST" \
+    --env FL_SERVER_DIR="$FL_SERVER_DIR_HOST" \
     --env FL_SERVER_URL="$FL_SERVER_URL" \
     --volume ${LEDGER_CERT_PATH}:/tmp/networkcert.pem \
     --volume ${SITE_TOML_SOURCE}:/tmp/site.toml \

@@ -6,30 +6,21 @@ a ``run.sh`` and a manifest saying which options that script takes (see
 ``app.guardian_registry``), so this module never names a guardian: it computes the
 values a launch could need and lets each manifest pick the ones it wants.
 
-How the resulting command is executed depends on where the webapp runs:
+Where the resulting command is actually *run* — here, or on the host when this
+webapp is itself in a container — is not a guardian question and lives in
+``app.service_launcher``, which the FL server's launcher uses too.
 
-* Not containerized (``CONTAINERIZED_DEPLOYMENT`` off): the webapp has Docker
-  access and runs the guardian command itself as a detached subprocess.
-* Containerized (``CONTAINERIZED_DEPLOYMENT`` on): the webapp has no Docker
-  access, so it writes the command as a shell script into ``GUARDIAN_DEPLOY_DIR``
-  (a directory shared with the host); the host-side launcher watches that
-  directory and runs each script.
-
-Either way, each ``run.sh`` owns the actual invocation, so it is not duplicated
-here. After deploying, poll ``wait_until_healthy`` until the guardian's ``/info``
+After deploying, poll ``wait_until_healthy`` until the guardian's ``/info``
 endpoint responds — every guardian answers it.
 """
 
 import logging
-import os
+import shlex
 import socket
-import subprocess
-import time
 
-import requests
 from django.conf import settings
 
-from . import guardian_registry
+from . import guardian_registry, service_launcher
 
 logger = logging.getLogger(__name__)
 
@@ -51,14 +42,13 @@ def resolve_serve_on(serve_on):
 
 
 def fl_client_id(host, port):
-    """The name an FL client beside a guardian on ``host:port`` answers to.
+    """The name an FL client beside a guardian on ``host:port`` is known by.
 
-    An inference guardian ships with an FL client, and a job for that guardian is
-    addressed to that client (see ``app.fl_client``). Both ends need the same name
-    for one guardian: the launcher passes it in at deploy time, and the consumer
-    flow reads it back off the asset's registry record. Deriving it from the
-    guardian's own address is what keeps those two agreeing without either side
-    storing anything extra.
+    An inference guardian ships with an FL client, and that client shows up on the
+    FL server's list of connected sites. Naming it after the guardian's own
+    address makes the list legible when several are up, without either side
+    storing anything extra. Nothing is routed by this name -- work is addressed to
+    the asset's DID -- so it is a label, not an identifier anything depends on.
     """
     return f"{host}:{port}"
 
@@ -73,7 +63,7 @@ def _storage_port(port):
     return int(port) + 1
 
 
-def launch_values(manifest, data_path, *, serve_on, port):
+def launch_values(manifest, data_path, *, serve_on, port, asset_did="", asset_name=""):
     """Everything a launch could need, for a manifest to draw the parts it takes.
 
     The keys are ``guardian_registry.LAUNCH_VALUES``; a manifest that names one
@@ -90,77 +80,60 @@ def launch_values(manifest, data_path, *, serve_on, port):
         "image": manifest.image,
         "fl_server_url": settings.FL_SERVER_URL_FROM_GUARDIAN,
         "fl_client_id": fl_client_id(advertised_host, port),
+        "asset_did": asset_did,
+        "asset_name": asset_name,
     }
 
 
-def guardian_run_command(data_path, *, guardian_type, serve_on, port):
+def guardian_run_command(
+    data_path, *, guardian_type, serve_on, port, asset_did="", asset_name=""
+):
     """Return ``(command, advertised_host, port)`` for one guardian.
 
     ``command`` is the ``run.sh`` invocation that starts a guardian of
     ``guardian_type`` serving ``data_path``, with exactly the options its manifest
-    declares, in the order it declares them.
+    declares, in the order it declares them. Every value is quoted: a data path or
+    an asset name is whatever its owner typed, and this string is run by a shell.
     """
     manifest = guardian_registry.get(guardian_type)
-    values = launch_values(manifest, data_path, serve_on=serve_on, port=port)
+    values = launch_values(
+        manifest,
+        data_path,
+        serve_on=serve_on,
+        port=port,
+        asset_did=asset_did,
+        asset_name=asset_name,
+    )
 
-    parts = [f"bash {manifest.run_script}"]
+    parts = [f"bash {shlex.quote(manifest.run_script)}"]
     for option, value_name in manifest.options.items():
-        parts.append(f"    {option} {values[value_name]}")
+        parts.append(f"    {option} {shlex.quote(values[value_name])}")
 
     return " \\\n".join(parts), values["advertised_host"], values["port"]
 
 
-def deploy_guardian(data_path, *, guardian_type, serve_on, port):
+def deploy_guardian(
+    data_path, *, guardian_type, serve_on, port, asset_did="", asset_name=""
+):
     """Start a guardian serving ``data_path`` and return ``(host, port)``.
 
-    Dispatches on ``CONTAINERIZED_DEPLOYMENT`` (see module docstring). Does not
-    wait for the guardian to be ready — call ``wait_until_healthy`` for that.
+    ``asset_did`` names the asset this guardian is being started for. An inference
+    guardian passes it to its FL client, which announces it to the FL server — so
+    the guardian has to be started *after* the asset's identity contract exists,
+    and a site that is up but nameless is a site no round can be addressed to.
+
+    Does not wait for the guardian to be ready — call ``wait_until_healthy``.
     """
     command, host, port = guardian_run_command(
-        data_path, guardian_type=guardian_type, serve_on=serve_on, port=port
+        data_path,
+        guardian_type=guardian_type,
+        serve_on=serve_on,
+        port=port,
+        asset_did=asset_did,
+        asset_name=asset_name,
     )
-
-    if settings.CONTAINERIZED_DEPLOYMENT:
-        _write_deploy_request(command)
-    else:
-        _run_command(command)
-
+    service_launcher.dispatch(command, log_name="guardian_run.log")
     return host, port
-
-
-def _write_deploy_request(command):
-    """Drop the guardian command into GUARDIAN_DEPLOY_DIR for the host watcher.
-
-    Written atomically (temp file + rename) so the watcher never reads a
-    half-written script.
-    """
-    deploy_dir = settings.GUARDIAN_DEPLOY_DIR
-    os.makedirs(deploy_dir, exist_ok=True)
-    name = f"guardian_{os.urandom(6).hex()}.sh"
-    final_path = os.path.join(deploy_dir, name)
-    tmp_path = final_path + ".tmp"
-    with open(tmp_path, "w") as f:
-        f.write("#!/usr/bin/env bash\n" + command + "\n")
-    os.rename(tmp_path, final_path)
-    logger.info("Wrote guardian deploy request: %s", final_path)
-
-
-def _run_command(command):
-    """Run the guardian command as a detached background process.
-
-    run.sh blocks for the guardian's lifetime, so it is deliberately not waited
-    on; readiness is confirmed separately via wait_until_healthy.
-    """
-    log_path = os.path.join(settings.SCRATCH_DIR, "guardian_run.log")
-    logger.info("Running guardian command (log: %s)", log_path)
-    log_file = open(log_path, "ab")
-    subprocess.Popen(
-        ["bash", "-c", command],
-        stdout=log_file,
-        stderr=subprocess.STDOUT,
-        stdin=subprocess.DEVNULL,
-        start_new_session=True,
-    )
 
 
 def wait_until_healthy(host, port, timeout=120, interval=3):
@@ -170,20 +143,6 @@ def wait_until_healthy(host, port, timeout=120, interval=3):
     Raises ``TimeoutError`` if the guardian is not healthy within ``timeout``
     seconds.
     """
-    url = f"http://{host}:{port}/info"
-    deadline = time.monotonic() + timeout
-    last_error = None
-    while time.monotonic() < deadline:
-        try:
-            resp = requests.get(url, timeout=5)
-            if resp.status_code == 200:
-                logger.info("Guardian healthy at %s", url)
-                return
-            last_error = f"HTTP {resp.status_code}"
-        except requests.RequestException as e:
-            last_error = str(e)
-        time.sleep(interval)
-    raise TimeoutError(
-        f"Guardian did not become healthy at {url} within {timeout}s "
-        f"(last error: {last_error})"
+    service_launcher.wait_until_healthy(
+        f"http://{host}:{port}", timeout=timeout, interval=interval
     )

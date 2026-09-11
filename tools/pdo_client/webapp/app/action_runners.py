@@ -7,7 +7,7 @@ own key. An inference guardian gives back nothing at all — the data stays wher
 is and a script is run against it, and what returns is metrics.
 
 The two policy-gated ones share a front half — a policy decision credential and the
-capability that follows from it — and differ in who redeems that capability.
+capability that follows from it — and differ in what happens to that capability.
 
 A runner owns one guardian type end to end: what the Use form must collect, what
 the flow's steps are, and what the result looks like. Adding a guardian type means
@@ -16,14 +16,21 @@ writing a runner and listing it in ``RUNNERS``, not branching inside a view.
 Each runner exposes ``steps()`` as the ``(id, label, fn)`` triples
 ``app.views._streaming.stream_steps`` runs, so the same definition drives both the
 streaming and the plain JSON endpoint.
+
+One runner is marked ``federated``. An inference asset is not used on its own: the
+point of keeping data in place is that several holders can be asked at once, and
+what a requester submits is one round over many sites. So the inference runner
+stops at the capability, and ``app.views.federated`` composes one runner per
+selected asset and takes the round from there. Nothing else about it changes —
+each site's capability still comes from that site's own policy.
 """
 
 import logging
 
 import requests
 
-from . import fl_client, guardian_launcher, pdo_runner, registry_client, session_keys
-from .did_utils import make_did, parse_did
+from . import pdo_runner, registry_client, session_keys
+from .did_utils import parse_did
 from .views._streaming import SkipStep
 
 logger = logging.getLogger(__name__)
@@ -77,6 +84,10 @@ class GuardianActionRunner:
     needs_wallets = True
     # how the UI should render the result: "data" (text) or "metrics" (JSON)
     result_kind = "data"
+    # whether this asset is used as one site of a federated round rather than on
+    # its own. A federated asset has no Use button on the asset list; it is
+    # selected, alongside others, from the Federated page.
+    federated = False
 
     def __init__(self, *, user_name, asset_did, metadata, wallets=None, params=None):
         self.user_name = user_name
@@ -208,53 +219,47 @@ class DownloadGuardianActionRunner(GuardianActionRunner):
 
 
 class InferenceGuardianActionRunner(GuardianActionRunner):
-    """Run a script against an asset that never leaves its guardian.
+    """Mint the capability that lets one site run an approved script in place.
 
-    The script is itself an asset behind a public guardian, and the wallet chosen
-    for the ``Script`` role *is* that asset's identity. One choice therefore settles
-    two things: the credentials describing the code (its digest, who owns it) are
+    The script is itself an asset behind a public guardian, and the identity chosen
+    for the ``Script`` role *is* that asset. One choice therefore settles two
+    things: the credentials describing the code (its digest, who owns it) are
     presented from it, and its DID resolves through the registry to the public
     guardian the script itself can be fetched from.
 
-    The capability the policy issues carries the approved digest. It travels to the
-    FL server and then to the FL client beside the guardian, which measures the
-    script it actually received and presents that measurement when it redeems the
-    capability. Approval and running code are checked against each other at the
-    moment the data is released, not before.
+    The capability the policy issues carries the approved digest and is redeemable
+    only at this asset's own guardian. It travels to the FL server and then to the
+    FL client beside that guardian, which measures the script it actually received
+    and presents that measurement when it redeems the capability. Approval and
+    running code are checked against each other at the moment the data is released,
+    not before.
 
-    What comes back is metrics, not data.
+    This runner stops there, because that is where one site's part ends: the
+    script, the round, and the metrics belong to the federated flow that is asking
+    several sites at once (see ``app.views.federated``). What that flow gets back
+    from here is a capability and nothing else.
     """
 
     name = "inference"
     label = "Request Inference"
-    result_kind = "metrics"
+    result_kind = "capability"
+    federated = True
 
-    # The role whose wallet is the script. Policies name it; see policy_cards/FL.
+    # The role whose identity is the script. Policies name it; see policy_cards/FL.
     SCRIPT_ROLE = "Script"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        script_wallet = self.wallets.get(self.SCRIPT_ROLE)
-        if not script_wallet:
+        # Checked here rather than left to the policy so the failure names the
+        # missing choice instead of arriving as a denied evaluation. The federated
+        # flow reads the same role to find the script it fetches for the round.
+        if not self.wallets.get(self.SCRIPT_ROLE):
             raise ValueError(
                 f"A script must be chosen for the '{self.SCRIPT_ROLE}' role to run "
                 "inference."
             )
-        # The asset registry keyed this identity contract under its DID when the
-        # script was registered, so the DID is all that is needed to find it.
-        self.script_asset_did = make_did(script_wallet)
-        # The capability this flow mints is only redeemable at this asset's own
-        # guardian, so the job is addressed to the FL client beside it rather than
-        # left for whichever client polls first.
-        self.fl_client_id = guardian_launcher.fl_client_id(
-            self.metadata.get("guardian_url", ""), self.metadata.get("guardian_port", "")
-        )
 
     def steps(self):
-        def fetch_script(ctx):
-            ctx["script"] = fetch_public_asset(self.script_asset_did)
-            return {"detail": f"{len(ctx['script'])} bytes from {self.script_asset_did}"}
-
         def capability(ctx):
             cap, _ = pdo_runner.create_capability(
                 wallet_ids=self.wallets,
@@ -262,35 +267,24 @@ class InferenceGuardianActionRunner(GuardianActionRunner):
                 user_name=self.user_name,
             )
             ctx["capability"] = cap
-            return {"detail": "issued by the asset's policy"}
-
-        def submit(ctx):
-            ctx["job_id"] = fl_client.submit_job(
-                ctx["script"],
-                ctx["capability"],
-                script_name=self.script_asset_did,
-                asset_did=self.asset_did,
-                target_client=self.fl_client_id,
-            )
-            return {"detail": f"job {ctx['job_id']}"}
-
-        def await_metrics(ctx):
-            job = fl_client.wait_for_job(ctx["job_id"])
-            if job.get("status") == "failed":
-                raise RuntimeError(job.get("error") or "the FL client reported a failure")
-            ctx["metrics"] = job.get("metrics") or {}
-            return {"detail": "reported by the FL client"}
+            return {"detail": "issued by this site's own policy"}
 
         return [
-            ("script", "Fetching the script from its public guardian", fetch_script),
             self._credential_step,
             ("capability", "Creating the inference capability", capability),
-            ("submit", "Submitting the job to the FL server", submit),
-            ("metrics", "Waiting for the FL client to report", await_metrics),
         ]
 
     def result(self, ctx):
-        return {"metrics": ctx.get("metrics", {}), "job_id": ctx.get("job_id", "")}
+        return {"capability": ctx.get("capability")}
+
+    def mint_capability(self):
+        """Run this site's half and return the capability, or raise.
+
+        The federated flow reports one event per *site* rather than per step — a
+        round over four hospitals showing twelve steps would bury which of them
+        said no — so it runs the steps through here and reports the outcome.
+        """
+        return self.run()["capability"]
 
 
 RUNNERS = {

@@ -32,7 +32,13 @@ bash guardians/inference/build.sh \
     --image mlcommons/toy_inference_guardian:$TAG \
     --client-image mlcommons/pdo_base_client:$TAG
 
-# guardians/public and fl_server are plain Python processes; nothing to build.
+# The FL server stands outside the PDO stack entirely -- a stdlib-only image off
+# python:slim, sharing none of the layers above -- because it is the one component
+# here that a federation would run itself.
+bash fl_server/build.sh \
+    --image mlcommons/pdo_fl_server:$TAG
+
+# guardians/public is a plain Python process; nothing to build.
 
 # The ledger and the services carry the CCF app and the enclaves the client talks
 # to, so they are not independent of the revision above: a client built from one
@@ -50,5 +56,6 @@ docker push mlcommons/pdo_toy_template_registry:$TAG
 docker push mlcommons/pdo_base_client:$TAG
 docker push mlcommons/toy_guardian:$TAG
 docker push mlcommons/toy_inference_guardian:$TAG
+docker push mlcommons/pdo_fl_server:$TAG
 docker push mlcommons/pdo_ledger:$TAG
 docker push mlcommons/pdo_services:$TAG

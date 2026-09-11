@@ -111,15 +111,16 @@ GUARDIAN_PORT = os.environ.get("GUARDIAN_PORT", "7900")
 # differ because binding every interface says nothing about which address is
 # routable, so the owner picks the intent and the launcher derives both:
 #
-#   localhost   bind loopback; reachable as "localhost" (the inference guardian's
-#               case -- its FL client talks to it over loopback)
+#   localhost   bind loopback; reachable as "localhost"
 #   0.0.0.0     bind every interface; reachable at F_SERVICE_HOST
 #   HOSTNAME    bind every interface; reachable at this machine's hostname
 SERVE_ON_CHOICES = ("localhost", "0.0.0.0", "HOSTNAME")
 DEFAULT_SERVE_ON = "0.0.0.0"
 
-# The mock FL server the inference action submits jobs to, and that the FL client
-# bundled with each inference guardian polls for work.
+# The FL server the Federated page offers first. It is a default, not a setting
+# the flow reads: a federated round is submitted to a server the requester names,
+# and the page lets them name a different one. The server is expected to be
+# running already — the webapp joins a federation, it does not convene one.
 FL_SERVER_URL = os.environ.get("FL_SERVER_URL", "http://localhost:7920")
 
 # How the inference guardian's container names the FL server. It is passed to the
@@ -129,6 +130,15 @@ FL_SERVER_URL = os.environ.get("FL_SERVER_URL", "http://localhost:7920")
 FL_SERVER_URL_FROM_GUARDIAN = os.environ.get(
     "FL_SERVER_URL_FROM_GUARDIAN", "http://host.docker.internal:7920"
 )
+
+# What the webapp needs in order to start an FL server itself, for the case where
+# the address above has nothing answering on it and there is no one else to ask.
+# Like GUARDIANS_DIR this is a *host* path — the command runs on the host — so it
+# must be overridden when the webapp runs in a container.
+FL_SERVER_DIR = os.environ.get(
+    "FL_SERVER_DIR", str(Path(GUARDIANS_DIR).parent / "fl_server")
+)
+FL_SERVER_IMAGE = os.environ.get("FL_SERVER_IMAGE", "mlcommons/pdo_fl_server:v2")
 
 # When the webapp itself runs inside a container it has no Docker access, so it
 # cannot run the guardian directly. Instead it writes the guardian command as a

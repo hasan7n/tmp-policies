@@ -1,11 +1,12 @@
-# Recipe — the inference tutorial, end to end, in a browser
+# Recipe — the federated inference tutorial, end to end, in a browser
 
 Run [`docs/docs/tutorial_inference.md`](../../docs/docs/tutorial_inference.md)
 from first click to last through the web UI, on a machine with no screen, and
-come out with a video of it happening. Both of the tutorial's policies, FL-DS
-and FL-IS, in one run.
+come out with a video of it happening. Two hospitals, two inference guardians,
+one federated round — and both of the FL policies, because Hospital B carries
+FL-DS and FL-IS together.
 
-**Done means:** the run prints `PASSED: 44 steps`, and there is one `run.mp4` of
+**Done means:** the run prints `PASSED: 20 steps`, and there is one `run.mp4` of
 the browser doing it.
 
 ## Parameters
@@ -26,8 +27,9 @@ report as skipped.
 
 | Thing | Why |
 | --- | --- |
-| Docker | everything but the FL server and the public guardian runs in a container |
+| Docker | the policy engine, the registries, the guardians and the FL server |
 | ~20GB free under `/var/lib/docker` | the PDO images |
+| a bare-metal PDO client | the webapp runs on the host, not in a container — see `onboarding.md` |
 | Google Chrome | selenium fetches its own driver |
 | `Xvfb` | the display the browser draws on (`sudo apt-get install -y xvfb`) |
 | `ffmpeg` | records that display (`pip install imageio-ffmpeg` also works) |
@@ -53,17 +55,18 @@ These must exist:
 | `tools/tests/run_webui_inference_test.sh` | brings the stack up and runs the test |
 | `tools/tests/webui_inference_test.py` | the clicking |
 | `tools/tests/recorder.py` | the display and the video |
-| `tools/make_tutorial_files.sh` | writes the cohort and the script the tutorial uses |
-| `tools/start_fl_server.sh` | the job board the inference flow goes through |
+| `tools/make_tutorial_files.sh` | writes the two cohorts and the script |
+| `tools/start_fl_server.sh` | the job board every site connects to |
+| `tools/start_webapp.sh` | the webapp, on this machine |
 | `policy_cards/FL/inference-disease-specific-research/` | the first policy tested |
 | `policy_cards/FL/inference-institution-specific-restriction/` | the second one |
 
 And the images the stack runs must be present locally or pullable — the tags the
 `tools/docker_*.sh` scripts name (`mlcommons/pdo_base_client`,
-`mlcommons/toy_guardian`, `mlcommons/toy_inference_guardian`, plus the ledger,
-services and registry images). Build the first three with
-`bash tools/docker_build_all.sh` if they are missing; that script also pushes, so
-comment the pushes out if you only want them locally.
+`mlcommons/toy_guardian`, `mlcommons/toy_inference_guardian`,
+`mlcommons/pdo_fl_server`, plus the ledger, services and registry images). Build
+them with `bash tools/docker_build_all.sh` if they are missing; that script also
+pushes, so comment the pushes out if you only want them locally.
 
 ## 2. Run it
 
@@ -71,7 +74,7 @@ comment the pushes out if you only want them locally.
 PYTHON=/path/to/venv/bin/python bash tools/tests/run_webui_inference_test.sh
 ```
 
-Takes about fifteen minutes, much of it the ledger and enclave services coming
+Takes about fifteen minutes, most of it the ledger and enclave services coming
 up. It tears the stack down afterwards; pass `-k` to leave it running.
 
 | flag | effect |
@@ -83,33 +86,37 @@ up. It tears the stack down afterwards; pass `-k` to leave it running.
 
 It does all of this by itself: generates the user keys, starts the ledger and
 enclave services, starts both registries, writes the tutorial files, starts the
-FL server, starts the webapp with its guardian deploy watcher, and then drives
-the browser through the tutorial:
+FL server **container**, starts the webapp on the host, and then drives the
+browser through the tutorial, once, in order:
 
-script owner publishes the script behind a public guardian and reads its DID →
-trusted issuer creates an issuer object and signs a `ScriptHashCredential` and an
-`IntendedDataUseCredential` about that script → dataset owner registers the
-cohort behind an inference guardian, attaches the disease-scope policy and trusts
-the issuer → script owner requests the run and gets metrics back.
+1. the **script owner** publishes the script behind a public guardian, reads its
+   DID, creates a wallet, and has that wallet sign a `ScriptOwnershipCredential`
+   over the script with its own contract key;
+2. the **trusted issuer** creates a manual issuer object and signs a
+   `ScriptHashCredential` and an `IntendedDataUseCredential` about the script and
+   an `AffiliationCredential` into the wallet, then creates a session-key issuer
+   (which brings a wallet key authority with it);
+3. **Hospital A** registers its cohort behind an inference guardian and attaches
+   **FL-DS** alone;
+4. **Hospital B** registers its own cohort behind its own guardian and attaches
+   **FL-DS and FL-IS together** — two subpolicies of one policy agent, both of
+   which must allow, with three trusted issuers between them;
+5. the **script owner** opens **Federated**, sees both sites connected to the FL
+   server, selects both, and runs **one round** across them.
 
-Then the part the tutorial can only describe: the owner narrows `allowedDiseases`
-to a code the script is not declared for, the **same** request is refused at the
-capability step, the owner puts it back, and the request succeeds again. Without
-that, a passing run only proves the machinery runs — not that the policy decides.
-Then a second script, hashing to something else but carrying the first one's
-digest: the policy approves it and the guardian refuses it.
+Two checks carry the weight, and both are about the thing being real rather than
+the clicks working:
 
-The second half is the tutorial's Part 5, the FL-IS policy. The trusted issuer
-adds a session-key issuer (which brings a wallet key authority with it), the
-script owner creates a wallet and has that wallet sign a `ScriptOwnershipCredential`
-over the script with its own contract key, the issuer vouches for the requester's
-institution, and a second cohort goes up behind FL-IS trusting all three issuers.
-The run is requested with both roles filled and metrics come back.
+* the Use modal must ask for exactly `Script` **and** `User` — the union of what
+  the two sites declared, not what either wants alone. Hospital A's FL-DS never
+  asks about the requester; Hospital B's pair does;
+* the round's aggregate `total_samples` must equal the two cohorts' real byte
+  sizes added together (295 + 427 = 722). It only adds up if each guardian
+  released the file it actually holds.
 
-Its denial is the one specific to this policy: a *second* wallet signs the same
-ownership claim about the same script — correctly, with its own key — and the same
-request is refused, because the wallet claiming the script is not the wallet the
-affiliation is about. Re-signing from the right wallet makes it pass again.
+A site whose policies refuse is reported in the result rather than failing the
+flow, so the test also fails if any site comes back refused — otherwise a round
+that quietly ran at one hospital would look like a pass.
 
 ## 3. What you should have at the end
 
@@ -117,10 +124,9 @@ affiliation is about. Re-signing from the right wallet makes it pass again.
 /tmp/pdo_webui_artifacts/run.mp4     the browser, start to end, real time
 /tmp/pdo_webui_artifacts/run_4x.mp4  the same thing, watchable
 /tmp/pdo_webapp.log                  the webapp's own log
-/tmp/pdo_fl_server.log               every job the FL server handed out
+/tmp/pdo_fl_server.log               every client announcement and every round
 /tmp/pdo_engine.log                  ledger + enclave services
-tools/pdo_scratch/guardian_requests/guardian_deploy.log
-                                     what each guardian printed as it came up
+/tmp/pdo_scratch/guardian_run.log    what each guardian printed as it came up
 ```
 
 Check the video is real before reporting success — it should be about as long as
@@ -148,11 +154,13 @@ Things that have actually gone wrong here:
 
 | symptom | cause |
 | --- | --- |
+| `No bare-metal PDO client at PDO_INSTALL_ROOT=...` | see `onboarding.md`; the webapp needs one on the host |
 | `Timed out ... waiting for the enclave services` | a previous run's ledger container is still up on the old workspace; tear down and retry |
 | every step fails at the identity dropdown | the webapp is up but its PDO client cannot reach the ledger — check `/tmp/pdo_webapp.log` |
-| registering the cohort fails at "Waiting for the guardian to be healthy" | the inference guardian container did not come up; see `guardian_deploy.log` |
-| the run step fails at "Waiting for the FL client to report" | no FL client is polling — the guardian is up but its bundled client crashed, or the FL server was not running when it started |
-| the run step fails at "Submitting the job to the FL server" | the webapp container cannot reach the FL server; it needs `FL_SERVER_URL` pointing at the host gateway (see `pdo_client/docker/run_webapp.sh`) |
+| registering a cohort fails at "Waiting for the guardian to be healthy" | the inference guardian container did not come up; see `/tmp/pdo_scratch/guardian_run.log` |
+| `sites [...] were not all ready within 120s` | a guardian is up but its FL client never announced — check that the FL server was running before the guardian started, and look for `client ... joined` in `/tmp/pdo_fl_server.log` |
+| `step 'contract' failed: ... Replication task failed for request number N` | not this codebase. Look just above it in `/tmp/pdo_webapp.log` for `store_blocks ... Read timed out` — a PDO storage service (ports 72xx) did not answer within its 10s timeout while the new contract's state was being replicated, and the creation was abandoned. It happens under load; re-run on a quiet machine rather than retrying the step |
+| a round hangs at "Waiting for ... to report" | that site's FL client crashed, or is polling a different FL server |
 | `Not recording: Xvfb is not installed` | see the requirements table above |
 
 ## 5. Clean up

@@ -15,6 +15,8 @@
     "--guardian-host": "advertised_host",
     "--data-path": "data_path",
     "--fl-server-url": "fl_server_url",
-    "--fl-client-id": "fl_client_id"
+    "--fl-client-id": "fl_client_id",
+    "--asset-did": "asset_did",
+    "--asset-name": "asset_name"
   }
 }

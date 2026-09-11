@@ -84,7 +84,8 @@ for img in \
     mlcommons/pdo_toy_asset_registry:v2 \
     mlcommons/pdo_toy_template_registry:v2 \
     mlcommons/toy_guardian:v2 \
-    mlcommons/toy_inference_guardian:v2 ; do
+    mlcommons/toy_inference_guardian:v2 \
+    mlcommons/pdo_fl_server:v2 ; do
     docker pull --quiet "$img" >/dev/null &
     PULL_PIDS+=("$!")
     PULL_IMAGES+=("$img")
@@ -117,12 +118,13 @@ sleep 10
 echo "==> Creating the tutorial files"
 bash make_tutorial_files.sh
 
-# The inference tutorial's job board. Both the webapp (which submits) and the FL
-# client bundled with each inference guardian (which claims) talk to it, so it
-# comes up before either of them.
+# The inference tutorial's job board. Both the webapp (which submits rounds) and
+# the FL client bundled with each inference guardian (which announces itself to it
+# and claims work from it) talk to it, so it comes up before either of them -- a
+# client that starts with no server to announce to is a site nobody can see.
 echo "==> Starting the FL server"
 nohup bash start_fl_server.sh > /tmp/pdo_fl_server.log 2>&1 &
-wait_for "the FL server" 60 curl -sf http://localhost:7920/info
+wait_for "the FL server" 120 curl -sf http://localhost:7920/info
 
 echo "==> Starting the webapp (with the guardian deploy watcher)"
 export CSRF_TRUSTED_ORIGINS="https://*.app.github.dev,https://*.githubpreview.dev"
@@ -141,6 +143,7 @@ cat <<EOF
  FL server logs: /tmp/pdo_fl_server.log
  Guardian logs:  $TOOLS/pdo_scratch/guardian_requests/guardian_deploy.log
  Data files:     /tmp/asset_data.txt (download tutorial)
-                 /tmp/patient_cohort.csv, /tmp/inference_script.py (inference)
+                 /tmp/hospital_a_cohort.csv, /tmp/hospital_b_cohort.csv
+                 and /tmp/inference_script.py (federated inference tutorial)
 ============================================================
 EOF

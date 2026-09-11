@@ -24,6 +24,12 @@ PDO_LOG_LEVEL="warn"
 # Optional seed script: a PDO flow run after bootstrap and before runserver.
 SEED_SCRIPT=""
 
+# Django's autoreloader restarts the server whenever a source file changes, which
+# drops whatever request was in flight. That is what you want while writing code
+# and exactly what you do not want under a driven browser: a flow that takes
+# minutes dies silently and the failure looks like the flow's.
+NORELOAD=""
+
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [options]
@@ -49,6 +55,10 @@ Options:
       --loglevel LEVEL           PDO log level (default: $PDO_LOG_LEVEL)
   -e, --seed PATH                Seed script (a PDO flow) to run after bootstrap,
                                  before the dev server starts (optional)
+      --noreload                 Do not restart the server when a source file
+                                 changes. Use it whenever something else is
+                                 driving the app; editing a file mid-flow
+                                 otherwise kills the request in flight
   -h, --help                     Show this help and exit
 
 PDO_INSTALL_ROOT and PDO_CONTRACTS_ROOT must be set in the environment by the
@@ -73,6 +83,7 @@ while [ $# -gt 0 ]; do
         --logfile)                 PDO_LOG_FILE="$2"; shift 2 ;;
         --loglevel)                PDO_LOG_LEVEL="$2"; shift 2 ;;
         -e|--seed)                 SEED_SCRIPT="$2"; shift 2 ;;
+        --noreload)                NORELOAD="--noreload"; shift ;;
         -h|--help)                 usage; exit 0 ;;
         *)                         echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
@@ -113,4 +124,4 @@ if [ -n "$SEED_SCRIPT" ]; then
     [ -f "$SEED_SCRIPT" ] || { echo "Seed script not found: $SEED_SCRIPT" >&2; exit 1; }
     python -u "$SCRIPT_DIR/manage.py" seed "$SEED_SCRIPT"
 fi
-exec python -u "$SCRIPT_DIR/manage.py" runserver "$INTERFACE:$PORT"
+exec python -u "$SCRIPT_DIR/manage.py" runserver $NORELOAD "$INTERFACE:$PORT"

@@ -65,16 +65,21 @@ def _response(body):
     return resp
 
 
-def stream_events(events, *, complete=None):
+def stream_events(events, *, complete=None, fatal=None):
     """Stream a ready-made iterable of event dicts, then a terminal event.
 
     ``complete`` is an optional zero-arg callable returning a dict merged into
-    the terminal event (only when no step errored).
+    the terminal event (only when the flow succeeded).
+
+    ``fatal(event)`` decides whether an errored step fails the whole flow; by
+    default every error does. A flow whose parts can fail independently says so
+    here — in a federated round, one site refusing is a result to report, not a
+    breakdown, and the round still has numbers to show from everyone else.
     """
     def body():
         errored = False
         for event in events:
-            if event.get("status") == "error":
+            if event.get("status") == "error" and (fatal is None or fatal(event)):
                 errored = True
             yield json.dumps(event) + "\n"
         yield json.dumps(_finalize(errored, complete)) + "\n"

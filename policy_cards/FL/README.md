@@ -75,3 +75,17 @@ Both policies are also exercised against a live deployment, end to end through t
 web UI, by `tools/tests/run_webui_inference_test.sh` — the automation of
 [the inference tutorial](../../docs/docs/tutorial_inference.md), whose two parts
 are FL-DS and FL-IS.
+
+## Each site chooses for itself
+
+Nothing about these policies is federation-wide, and that is the point. Each data
+holder attaches its own policy agent contract to its own asset, with its own
+policy data, its own trusted issuers, and its own choice of *which* of these
+policies to apply — one, the other, or both. A round over several sites asks each
+of them separately and gets a separate verdict.
+
+The tutorial is exactly that: Hospital A attaches FL-DS alone and never asks who
+is requesting; Hospital B attaches FL-DS **and** FL-IS to one asset and does. One
+round serves both, and the requester has to satisfy the union of what the two
+sites ask for — `Script` alone would not get past B, and B's extra demands never
+reach A.

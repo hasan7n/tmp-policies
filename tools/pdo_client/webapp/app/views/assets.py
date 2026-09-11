@@ -44,6 +44,27 @@ def _guardian_url_port(host, port):
     return f"http://{host}:{port}"
 
 
+FEDERATED_ONLY = (
+    "This asset is one site of a federated round, not something to run on its "
+    "own. Select it, with the others you want, on the Federated page."
+)
+
+
+def _reject_federated(metadata):
+    """Raise ``ValidationError`` if this asset is only usable federated.
+
+    Both single-asset Use endpoints go through here rather than quietly doing half
+    of a federated round: an inference capability is minted for one guardian and
+    then has to reach an FL server with the rest of its round, which this path
+    knows nothing about.
+    """
+    runner_class = action_runners.RUNNERS.get(
+        action_runners.guardian_type_of(metadata)
+    )
+    if runner_class and runner_class.federated:
+        raise ValidationError(FEDERATED_ONLY)
+
+
 def _offerable_guardians():
     """The guardians the registration form may offer.
 
@@ -212,6 +233,10 @@ class AssetsListView(BaseView):
                 a["guardian_type"] = guardian_type
                 a["action_label"] = runner_class.label if runner_class else "Use"
                 a["needs_wallets"] = bool(runner_class and runner_class.needs_wallets)
+                # An asset behind an inference guardian is one site of a federated
+                # round, never a thing to run on its own, so this page does not
+                # offer to run it — the Federated page does, over several at once.
+                a["federated"] = bool(runner_class and runner_class.federated)
         except Exception as e:
             logger.exception("Failed to fetch assets")
             list_error = str(e)
@@ -244,10 +269,16 @@ class AssetSetupView(BaseView):
     """GET: registration form. POST: deploy a guardian for the data and register
     the asset.
 
-    Registering an asset also starts a guardian serving the given data path — the
-    kind, bind address and port the owner chose on the form; we wait for the
-    guardian to be healthy before recording it on the asset, so the asset is only
-    created once it is actually behind a running guardian.
+    Registering an asset does three things in this order: mint the identity
+    contract that gives the asset its DID, start a guardian serving the given data
+    path (told that DID), and — once the guardian answers — record the asset in
+    the registry.
+
+    The DID has to come first because a guardian may need to say which asset it
+    holds: an inference guardian announces exactly that to an FL server, and a site
+    that cannot name what it is holding is a site no round can be addressed to. The
+    registry entry still comes last, so an asset never appears without a working
+    guardian behind it.
     """
 
     def get(self, request):
@@ -273,14 +304,24 @@ class AssetSetupView(BaseView):
         config = AppConfig.get_instance()
         user_name = config.public_key
 
-        # Deploy the guardian first and wait until it is up; only then register
-        # the asset, so an asset never exists without a working guardian.
+        try:
+            contract_id = pdo_runner.create_asset_identity(name, user_name)
+            did = make_did(contract_id)
+        except Exception as e:
+            logger.exception("Failed to create the asset contract")
+            return self._error(request, f"Failed to create the asset contract: {e}")
+
+        # Start the guardian, told which asset it is holding, and wait until it is
+        # up; only then register the asset, so an asset never appears in the
+        # registry without a working guardian.
         try:
             guardian_url, guardian_port = guardian_launcher.deploy_guardian(
                 data_source,
                 guardian_type=guardian_type,
                 serve_on=serve_on,
                 port=port,
+                asset_did=did,
+                asset_name=name,
             )
             guardian_launcher.wait_until_healthy(guardian_url, guardian_port)
         except Exception as e:
@@ -288,9 +329,6 @@ class AssetSetupView(BaseView):
             return self._error(request, f"Failed to deploy guardian: {e}")
 
         try:
-            contract_id = pdo_runner.create_asset_identity(name, user_name)
-            did = make_did(contract_id)
-
             registry_asset = registry_client.register_asset(
                 name=name,
                 did=did,
@@ -632,6 +670,7 @@ class AssetUseEndpoint(JsonView):
 
         asset_info = registry_client.get_asset_by_did(asset_did)
         metadata = asset_info.get("metadata", {}) or {}
+        _reject_federated(metadata)
 
         try:
             runner = action_runners.build_runner(
@@ -653,6 +692,10 @@ class AssetUseFormEndpoint(JsonView):
 
     The roles come from the asset's own policy, so the form cannot be rendered
     from the asset list alone; the client asks for them when the modal opens.
+
+    Federated assets answer this too, and the Federated page asks it of every
+    asset a requester selects: each site's policy decides its own roles, and the
+    form has to cover the union of them.
     """
 
     def handle(self, request, data, **kwargs):
@@ -689,6 +732,7 @@ class AssetUseFormEndpoint(JsonView):
             "ok": True,
             "guardian_type": guardian_type,
             "label": runner_class.label,
+            "federated": runner_class.federated,
             "roles": roles,
         }
 
@@ -816,12 +860,19 @@ class AssetSetupStreamView(BaseView):
 
         user_name = AppConfig.get_instance().public_key
 
+        def contract(ctx):
+            ctx["contract_id"] = pdo_runner.create_asset_identity(name, user_name)
+            ctx["did"] = make_did(ctx["contract_id"])
+            return {"detail": _short_id(ctx["contract_id"])}
+
         def deploy(ctx):
             url, resolved_port = guardian_launcher.deploy_guardian(
                 data_source,
                 guardian_type=guardian_type,
                 serve_on=serve_on,
                 port=port,
+                asset_did=ctx["did"],
+                asset_name=name,
             )
             ctx["guardian_url"], ctx["guardian_port"] = url, resolved_port
             return {"detail": f"{guardian_type} guardian at {url}:{resolved_port}"}
@@ -831,12 +882,8 @@ class AssetSetupStreamView(BaseView):
                 ctx["guardian_url"], ctx["guardian_port"]
             )
 
-        def contract(ctx):
-            ctx["contract_id"] = pdo_runner.create_asset_identity(name, user_name)
-            return {"detail": _short_id(ctx["contract_id"])}
-
         def register(ctx):
-            did = make_did(ctx["contract_id"])
+            did = ctx["did"]
             reg = registry_client.register_asset(
                 name=name,
                 did=did,
@@ -859,9 +906,9 @@ class AssetSetupStreamView(BaseView):
             )
 
         steps = [
+            ("contract", "Creating the asset contract", contract),
             ("guardian", "Deploying the guardian", deploy),
             ("health", "Waiting for the guardian to be healthy", wait),
-            ("contract", "Creating the asset contract", contract),
             ("register", "Registering the asset", register),
         ]
         return stream_steps(
@@ -1014,6 +1061,11 @@ class AssetUseStreamView(BaseView):
         except Exception as e:
             return JsonResponse({"error": f"failed to look up asset: {e}"}, status=400)
         metadata = (asset_info or {}).get("metadata", {}) or {}
+
+        try:
+            _reject_federated(metadata)
+        except ValidationError as e:
+            return JsonResponse({"error": str(e)}, status=400)
 
         try:
             runner = action_runners.build_runner(

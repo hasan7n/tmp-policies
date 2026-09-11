@@ -1,19 +1,25 @@
-"""The inference tutorial, driven through the web UI.
+"""The federated inference tutorial, driven through the web UI.
 
 Every click `docs/docs/tutorial_inference.md` asks a reader to make, made by a
-browser instead: the script owner publishes their code, the trusted issuer
-vouches for it, the dataset owner puts a cohort behind an inference guardian and
-attaches a disease-scope policy to it, and the script owner asks for the run.
+browser instead, in the same order and with nothing added:
 
-It then does the one thing the tutorial can only describe -- it takes the policy
-out of scope and watches the same request be refused, so a passing run is
-evidence the policy is deciding rather than waving everything through.
+* the script owner publishes their code behind a public guardian, gets a wallet,
+  and has that wallet claim the script;
+* the trusted issuer vouches for the code (digest, declared diseases), for the
+  requester (institution), and creates the session-key issuer that will bind a
+  fresh key to the requester's wallet;
+* **Hospital A** puts its cohort behind an inference guardian under **FL-DS**;
+* **Hospital B** puts its own cohort behind its own guardian under **FL-DS and
+  FL-IS together** -- two subpolicies of one policy agent, both of which must
+  allow;
+* the script owner runs **one round** across both, filling the union of the roles
+  the two sites ask for, and gets per-site metrics and one aggregate back.
 
-The second half runs the tutorial's other policy, FL-IS, which asks who is
-running the code rather than what the code is for. That one turns on a credential
-the requester's own wallet signs, so it also checks the thing that makes such a
-credential worth anything: swap in an ownership claim from a different wallet and
-the same request stops being allowed.
+What the run proves, beyond "it works": the aggregate's ``total_samples`` is the
+sum of the two cohorts' real sizes, so it only adds up if each guardian released
+the file it actually holds; and the Use form asks for exactly ``Script`` and
+``User``, which is the union of what A and B declared and not what either asked
+for alone.
 
 Deliberately not pytest. This is a script: it runs top to bottom, prints each
 step as it happens, and exits non-zero on the first failure with the browser's
@@ -45,45 +51,42 @@ from recorder import SCREEN, NullRecorder, Recorder, VirtualDisplay
 # ---------------------------------------------------------------- the tutorial
 SCRIPT_OWNER = "data_user"
 ISSUER = "vc_issuer"
-DATA_OWNER = "data_owner"
+HOSPITAL_A = "hospital_a"
+HOSPITAL_B = "hospital_b"
 
 SCRIPT_ASSET = "cohort_summary_script"
-EDITED_SCRIPT_ASSET = "cohort_summary_script_v2"
-DATA_ASSET = "patient_cohort"
-# The second half's dataset: the same cohort behind its own guardian, so the two
-# policies are demonstrated side by side rather than one replacing the other.
-PARTNER_ASSET = "partner_cohort"
+# The two sites of the federated round: different hospitals, different cohorts,
+# each behind its own guardian, and not the same policies.
+ASSET_A = "hospital_a_cohort"
+ASSET_B = "hospital_b_cohort"
+
 ISSUER_NAME = "code review board"
 SESSION_KEY_ISSUER = "session keys"
 WALLET_NAME = "researcher_wallet"
-OTHER_WALLET_NAME = "outsider_wallet"
 
 SCRIPT_PATH = os.environ.get("TUTORIAL_SCRIPT_PATH", "/tmp/inference_script.py")
-EDITED_SCRIPT_PATH = os.environ.get(
-    "TUTORIAL_EDITED_SCRIPT_PATH", "/tmp/inference_script_v2.py"
-)
-COHORT_PATH = os.environ.get("TUTORIAL_COHORT_PATH", "/tmp/patient_cohort.csv")
+COHORT_A_PATH = os.environ.get("TUTORIAL_COHORT_A_PATH", "/tmp/hospital_a_cohort.csv")
+COHORT_B_PATH = os.environ.get("TUTORIAL_COHORT_B_PATH", "/tmp/hospital_b_cohort.csv")
 
 SCRIPT_PORT = "7910"
-EDITED_SCRIPT_PORT = "7911"
-GUARDIAN_PORT = "7900"
-PARTNER_GUARDIAN_PORT = "7902"
+GUARDIAN_PORT_A = "7900"
+GUARDIAN_PORT_B = "7902"
 
-# The disease the tutorial's script declares itself for, and one it does not --
-# the second is what the denial check swaps in.
+# The disease the tutorial's script declares itself for.
 ALLOWED_DISEASE = "MONDO:0005148"
-OTHER_DISEASE = "MONDO:0005015"
-
-# The institution the requester belongs to, for the second policy.
+# The institution the requester belongs to, which only Hospital B asks about.
 ALLOWED_INSTITUTION = "did:example:best_university"
 
 DS_POLICY_NAME = "FL-INFERENCE-DISEASE-SPECIFIC-RESEARCH"
 IS_POLICY_NAME = "FL-INFERENCE-INSTITUTION-SPECIFIC-RESTRICTION"
 
 # A guardian deploy waits on a container coming up; a policy is several contract
-# operations in a row; an inference run waits on an FL client claiming the job.
+# operations in a row; a round waits on every site's FL client claiming its job.
 SHORT_WAIT = 30
 FLOW_TIMEOUT = int(os.environ.get("WEBUI_FLOW_TIMEOUT", "600"))
+# A guardian answers /info before the FL client bundled with it has announced
+# itself, so a site can be up for a few seconds before it is listed.
+SITE_WAIT = int(os.environ.get("WEBUI_SITE_WAIT", "120"))
 
 # Replaces window.alert with an on-page toast. The webapp reports everything
 # through alert(), which in a driven browser is a modal that blocks the page and
@@ -267,12 +270,16 @@ def alerts(driver):
     return driver.execute_script("return window.__pdoAlertShim || [];")
 
 
-def run_flow(driver, timeout=FLOW_TIMEOUT, expect_error=False):
+def run_flow(driver, timeout=FLOW_TIMEOUT, expect_error=False, ignore_step_errors=False):
     """Wait out a streaming flow and return the steps the modal showed.
 
     Every multi-step action in this webapp -- provisioning, registering,
-    exposing, using -- reports through the same progress modal, so one waiter
-    covers all of them. Raises unless the outcome is the one asked for.
+    exposing, running a round -- reports through the same progress modal, so one
+    waiter covers all of them. Raises unless the outcome is the one asked for.
+
+    ``ignore_step_errors`` is for the federated round, where a step can fail
+    without the flow failing: a site refusing is one of the outcomes the round
+    exists to report, and the caller checks which sites those were.
     """
     started_at = driver.current_url
     deadline = time.time() + timeout
@@ -302,24 +309,18 @@ def run_flow(driver, timeout=FLOW_TIMEOUT, expect_error=False):
     for s in state["steps"]:
         print(f"      [{s['status']:>7}] {s['label']} {s['detail']}", flush=True)
 
-    if expect_error and not errored:
-        raise StepFailed("the flow was expected to fail, and did not")
-    if errored and not expect_error:
-        first = errored[0]
-        raise StepFailed(f"step {first['step']!r} failed: {first['detail']}")
+    if not ignore_step_errors:
+        if expect_error and not errored:
+            raise StepFailed("the flow was expected to fail, and did not")
+        if errored and not expect_error:
+            first = errored[0]
+            raise StepFailed(f"step {first['step']!r} failed: {first['detail']}")
 
     # A flow that redirects does so shortly after it reports done. Let that land
     # here rather than under whatever the next step has already navigated to.
     if not errored:
         time.sleep(1.5)
     return state["steps"]
-
-
-def dismiss_progress(driver):
-    driver.execute_script(
-        "var m = document.getElementById('progress-modal');"
-        "if (m) { m.classList.add('hidden'); }"
-    )
 
 
 def as_identity(runner, name):
@@ -473,20 +474,13 @@ def script_digest(path):
         return "sha256:" + hashlib.sha256(f.read()).hexdigest()
 
 
-def set_policy_data(runner, data):
-    """Rewrite a live policy's data from the asset dashboard."""
-    set_value(runner.driver, "#policy-data-textarea", json.dumps(data, indent=2))
-    before = len(alerts(runner.driver))
-    click(runner.driver, "#update-policy-data-form button[type=submit]")
-    wait(runner.driver, SHORT_WAIT * 4).until(lambda d: len(alerts(d)) > before)
-    message = alerts(runner.driver)[-1]
-    if message.startswith("Error"):
-        raise StepFailed(f"updating the policy data failed: {message}")
-    print(f"      {message}", flush=True)
+def expose_asset(runner, *, asset, policies, policy_data, issuers):
+    """Attach policies to an owned asset and trust the issuers they read.
 
-
-def expose_asset(runner, *, asset, policy, policy_data, issuers):
-    """Attach a policy to an owned asset and trust the issuers that policy reads.
+    ``policies`` is a list of policy names: an asset may carry several, each
+    becoming a subpolicy of its one policy agent, all of which must allow. The
+    policy data is set *after* they are all checked, because checking one
+    rewrites that box with the union of the checked policies' schemas.
 
     ``issuers`` is a list of ``(did, [credential_type, ...])``; each becomes one
     box in the expose form's trusted-issuer section.
@@ -495,25 +489,26 @@ def expose_asset(runner, *, asset, policy, policy_data, issuers):
     click(runner.driver, "[data-modal-open=expose-modal]")
     visible(runner.driver, "#expose-modal .modal")
 
-    checked = runner.driver.execute_script(
-        """
-        var wanted = arguments[0];
-        var hit = null;
-        document.querySelectorAll('#id_policy_templates .checkbox-item').forEach(
-            function (row) {
-                var label = row.querySelector('label');
-                if (label && label.textContent.trim() === wanted) {
-                    hit = row.querySelector('input[name=policy_templates]');
-                }
-            });
-        if (!hit) { return false; }
-        hit.click();
-        return true;
-        """,
-        policy,
-    )
-    if not checked:
-        raise StepFailed(f"the expose form does not offer a policy named {policy!r}")
+    for policy in policies:
+        checked = runner.driver.execute_script(
+            """
+            var wanted = arguments[0];
+            var hit = null;
+            document.querySelectorAll('#id_policy_templates .checkbox-item').forEach(
+                function (row) {
+                    var label = row.querySelector('label');
+                    if (label && label.textContent.trim() === wanted) {
+                        hit = row.querySelector('input[name=policy_templates]');
+                    }
+                });
+            if (!hit) { return false; }
+            hit.click();
+            return true;
+            """,
+            policy,
+        )
+        if not checked:
+            raise StepFailed(f"the expose form does not offer a policy named {policy!r}")
 
     set_value(runner.driver, "#id_policy_data", json.dumps(policy_data, indent=2))
 
@@ -548,78 +543,205 @@ def expose_asset(runner, *, asset, policy, policy_data, issuers):
     run_flow(runner.driver)
 
 
-def request_inference(runner, *, data_asset, roles, expect_error=False):
-    """Click through the Use modal on someone else's asset.
+# ------------------------------------------------------------------- federated
+READ_SITES = """
+var rows = [];
+document.querySelectorAll('#fl-sites-body tr').forEach(function (tr) {
+    var check = tr.querySelector('[data-site-check]');
+    rows.push({
+        name: (tr.querySelector('[data-site-name]') || {}).textContent || '',
+        did: (tr.querySelector('[data-site-did]') || {}).textContent || '',
+        state: (tr.querySelector('[data-site-state]') || {}).textContent || '',
+        selectable: !!(check && !check.disabled),
+    });
+});
+return {
+    rows: rows,
+    status: (document.getElementById('fl-server-status') || {}).textContent || '',
+};
+"""
 
-    ``roles`` maps each role the policy declares to the name of the wallet or
-    script asset that fills it; it is checked against what the modal actually
-    asks for, so a policy that changed its mind about its roles fails here rather
-    than somewhere less legible.
-    """
-    open_page(runner, "/")
-    opened = runner.driver.execute_script(
-        """
-        var wanted = arguments[0];
-        var hit = null;
-        document.querySelectorAll('[data-action="open-use"]').forEach(function (btn) {
-            if ((btn.dataset.assetName || '').trim() === wanted) { hit = btn; }
-        });
-        if (!hit) { return ''; }
-        hit.click();
-        return hit.dataset.actionLabel || '';
-        """,
-        data_asset,
+SELECT_SITES = """
+var wanted = arguments[0];
+var problems = wanted.slice();          // anything still here was never selected
+document.querySelectorAll('#fl-sites-body tr').forEach(function (tr) {
+    var name = ((tr.querySelector('[data-site-name]') || {}).textContent || '').trim();
+    var check = tr.querySelector('[data-site-check]');
+    if (!check) { return; }
+    var want = wanted.indexOf(name) >= 0;
+    if (check.checked !== want) {
+        check.click();   // the page tracks selection off the change event
+    }
+    // Only a box that ended up in the state we asked for counts as done: a
+    // disabled one ignores the click, and a round that quietly dropped a site
+    // would look like a passing round over fewer hospitals.
+    if (want && check.checked) { problems.splice(problems.indexOf(name), 1); }
+});
+return problems;
+"""
+
+READ_ROUND = """
+var sites = [];
+document.querySelectorAll('#fl-result-body [data-site-row]').forEach(function (tr) {
+    sites.push({
+        name: tr.dataset.siteName,
+        status: tr.dataset.siteStatus,
+        text: (tr.querySelector('td:last-child') || {}).textContent || '',
+    });
+});
+var agg = document.getElementById('fl-result-aggregate');
+return { sites: sites, aggregate: agg ? agg.textContent : '' };
+"""
+
+
+def open_federated(runner):
+    """Open the Federated page and wait for it to finish connecting."""
+    open_page(runner, "/federated/")
+    visible(runner.driver, "#fl-sites-empty, #fl-sites-table")
+    wait(runner.driver, SHORT_WAIT).until(
+        lambda d: "Connecting" not in d.execute_script(READ_SITES)["status"]
     )
-    if opened == "":
-        raise StepFailed(
-            f"no usable asset named {data_asset!r} -- it is either owned by this "
-            "identity or has no guardian"
-        )
-    if opened != "Request Inference":
-        raise StepFailed(f"expected an inference action, the button says {opened!r}")
+    return runner.driver.execute_script(READ_SITES)
 
-    # The roles come from the policy, so the modal is empty until it has asked.
+
+def await_sites(runner, names, timeout=SITE_WAIT):
+    """Wait until every named site is listed and ready to take part.
+
+    A guardian answers its readiness check before the FL client bundled with it
+    has announced itself, so a freshly registered site can be a few seconds
+    behind the asset that created it. Reconnecting is how the page re-reads the
+    server, so that is what this does.
+    """
+    deadline = time.time() + timeout
+    state = {"rows": [], "status": ""}
+    while time.time() < deadline:
+        state = open_federated(runner)
+        ready = {
+            row["name"].strip()
+            for row in state["rows"]
+            if row["selectable"] and "ready" in row["state"]
+        }
+        if set(names) <= ready:
+            print(f"      sites: {sorted(ready)}", flush=True)
+            return state
+        REC.tick()
+        time.sleep(3)
+
+    listed = [(r["name"].strip(), r["state"].strip()) for r in state["rows"]]
+    raise StepFailed(
+        f"sites {sorted(names)} were not all ready within {timeout}s; the page "
+        f"lists {listed} ({state['status'].strip()})"
+    )
+
+
+def request_round(runner, *, sites, roles):
+    """Select some sites on the Federated page and run one round over them.
+
+    ``roles`` maps each role the selected sites' policies declare to the name of
+    the wallet or script asset that fills it; it is checked against what the modal
+    actually asks for, so a policy that changed its mind about its roles fails
+    here rather than somewhere less legible.
+
+    Returns ``{"sites": [{name, status, text}], "aggregate": str}`` as the result
+    panel states it.
+    """
+    open_federated(runner)
+    missing = runner.driver.execute_script(SELECT_SITES, list(sites))
+    if missing:
+        raise StepFailed(
+            f"could not select {missing} on the Federated page -- not listed, or "
+            "listed but not available to take part"
+        )
+
+    click(runner.driver, "#fl-run")
     wait(runner.driver, SHORT_WAIT * 2).until(
-        lambda d: d.find_elements(By.CSS_SELECTOR, "#use-roles [data-role-select]")
+        lambda d: d.find_elements(By.CSS_SELECTOR, "#fl-run-roles [data-role-select]")
     )
     asked = sorted(
         e.get_attribute("data-role")
         for e in runner.driver.find_elements(
-            By.CSS_SELECTOR, "#use-roles [data-role-select]"
+            By.CSS_SELECTOR, "#fl-run-roles [data-role-select]"
         )
     )
     if asked != sorted(roles):
         raise StepFailed(
-            f"expected the policy to ask for {sorted(roles)}, it asks for {asked}"
+            f"expected the round to ask for {sorted(roles)}, it asks for {asked}"
         )
-
     for role, filled_by in roles.items():
-        Select(visible(runner.driver, f"#use-wallet-{role}")).select_by_visible_text(
+        Select(visible(runner.driver, f"#fl-role-{role}")).select_by_visible_text(
             filled_by
         )
-    click(runner.driver, "#use-submit")
-    steps = run_flow(runner.driver, expect_error=expect_error)
 
-    if expect_error:
-        return steps
+    click(runner.driver, "#fl-run-submit")
+    steps = run_flow(runner.driver, ignore_step_errors=True)
 
-    output = visible(runner.driver, "#use-result-output", SHORT_WAIT)
-    title = runner.driver.find_element(By.CSS_SELECTOR, "#use-result-title").text
-    if title != "Reported Metrics":
-        raise StepFailed(f"expected metrics back, the result panel says {title!r}")
+    # A round that ran shows its result, refusals included. If no result panel
+    # appears the flow failed as a whole rather than at a site, and the useful
+    # thing to report is which step ended it -- not that an element never showed.
     try:
-        metrics = json.loads(output.text)
+        visible(runner.driver, "#fl-result-body", SHORT_WAIT)
+    except WebDriverException:
+        errored = [s for s in steps if s["status"] == "error"]
+        raise StepFailed(
+            "the round produced no result; it ended at "
+            + (
+                f"{errored[-1]['step']!r}: {errored[-1]['detail']}"
+                if errored
+                else "no step that reported an error"
+            )
+        )
+    round_result = runner.driver.execute_script(READ_ROUND)
+    round_result["steps"] = steps
+    for site in round_result["sites"]:
+        print(f"      {site['name']}: {site['status']}", flush=True)
+    print(f"      aggregate: {round_result['aggregate']}", flush=True)
+
+    # A round reports a site whose policies refused rather than failing outright,
+    # so a refusal would otherwise pass as "the round ran" over fewer hospitals.
+    refused = {s["name"] for s in round_result["sites"] if s["status"] == "refused"}
+    if refused:
+        detail = "; ".join(
+            f"{s['name']}: {s['text'][:120]}"
+            for s in round_result["sites"]
+            if s["status"] == "refused"
+        )
+        raise StepFailed(f"a site's policies refused the request -- {detail}")
+    click(runner.driver, "[data-modal-close=fl-result-modal]")
+    return round_result
+
+
+def aggregate_of(round_result):
+    try:
+        return json.loads(round_result["aggregate"])
     except json.JSONDecodeError:
-        raise StepFailed(f"the metrics panel is not JSON: {output.text[:200]!r}")
-    return metrics
+        raise StepFailed(
+            f"the aggregate panel is not JSON: {round_result['aggregate'][:200]!r}"
+        )
+
+
+def expect_ran(round_result, names):
+    """Assert exactly these sites ran the script and reported numbers."""
+    ran = {s["name"] for s in round_result["sites"] if s["status"] == "complete"}
+    if ran != set(names):
+        raise StepFailed(f"expected {sorted(names)} to have run it, {sorted(ran)} did")
 
 
 # ---------------------------------------------------------------- the workflow
 def run_workflow(runner):
-    state = {"digest": script_digest(SCRIPT_PATH)}
-    print(f"\nscript digest: {state['digest']}", flush=True)
+    """The tutorial, in order, once.
 
-    # -------------------------------------------------- Part 1: script owner
+    Every step below is a step a reader performs; nothing here explores a variant
+    the tutorial does not describe.
+    """
+    state = {"digest": script_digest(SCRIPT_PATH)}
+    sizes = {
+        ASSET_A: os.path.getsize(COHORT_A_PATH),
+        ASSET_B: os.path.getsize(COHORT_B_PATH),
+    }
+    print(f"\nscript digest: {state['digest']}", flush=True)
+    print(f"cohort sizes : {sizes}", flush=True)
+
+    # ------------------------------- Part 1: the script owner and their wallet
     runner.step(
         f"Become {SCRIPT_OWNER} (the script owner)",
         lambda: as_identity(runner, SCRIPT_OWNER),
@@ -641,6 +763,25 @@ def run_workflow(runner):
         print(f"      script DID: {state['script_did']}", flush=True)
 
     runner.step("Read the script's DID", read_script_did)
+
+    def make_wallet():
+        state["wallet_did"] = create_wallet(runner, WALLET_NAME)
+        print(f"      wallet DID: {state['wallet_did']}", flush=True)
+
+    runner.step("Create the requester's wallet", make_wallet)
+
+    runner.step(
+        "The wallet claims the script, signing with its own contract key",
+        lambda: (
+            open_wallet(runner, WALLET_NAME),
+            sign_credential(
+                runner,
+                template="ScriptOwnershipCredential",
+                subject_did=state["script_did"],
+                claims={"ownedBy": state["wallet_did"]},
+            ),
+        ),
+    )
 
     # ------------------------------------------------ Part 2: trusted issuer
     runner.step(
@@ -680,233 +821,17 @@ def run_workflow(runner):
             },
         ),
     )
-
-    # ------------------------------------------------- Part 3: dataset owner
     runner.step(
-        f"Become {DATA_OWNER} (the dataset owner)",
-        lambda: as_identity(runner, DATA_OWNER),
-    )
-    runner.step(
-        "Publish the cohort behind an inference guardian",
-        lambda: register_asset(
-            runner,
-            name=DATA_ASSET,
-            path=COHORT_PATH,
-            guardian_title="Inference",
-            port=GUARDIAN_PORT,
-        ),
-    )
-
-    runner.step(
-        "Attach the disease-scope policy and trust the issuer",
-        lambda: expose_asset(
-            runner,
-            asset=DATA_ASSET,
-            policy=DS_POLICY_NAME,
-            policy_data={"allowedDiseases": [ALLOWED_DISEASE]},
-            issuers=[
-                (
-                    state["issuer_did"],
-                    ["ScriptHashCredential", "IntendedDataUseCredential"],
-                )
-            ],
-        ),
-    )
-
-    # --------------------------------------------------- Part 4: the run
-    runner.step(
-        f"Become {SCRIPT_OWNER} again to request the run",
-        lambda: as_identity(runner, SCRIPT_OWNER),
-    )
-
-    def run_inference():
-        metrics = request_inference(
-            runner, data_asset=DATA_ASSET, roles={"Script": SCRIPT_ASSET}
-        )
-        print(f"      metrics: {metrics}", flush=True)
-        expected = os.path.getsize(COHORT_PATH)
-        if metrics.get("samples") != expected:
-            raise StepFailed(
-                f"the FL client reported {metrics.get('samples')} bytes of data, "
-                f"but the cohort is {expected} -- it did not get the real file"
-            )
-
-    runner.step("Request the inference run, and get metrics back", run_inference)
-
-    # ------------------------------------------- the same request, refused
-    runner.step(
-        f"Become {DATA_OWNER} to narrow the policy",
-        lambda: as_identity(runner, DATA_OWNER),
-    )
-
-    def narrow_policy():
-        open_own_asset(runner, DATA_ASSET)
-        set_policy_data(runner, {"allowedDiseases": [OTHER_DISEASE]})
-
-    runner.step(
-        f"Change the allowed disease to {OTHER_DISEASE}, which the script is not for",
-        narrow_policy,
-    )
-
-    runner.step(
-        f"Become {SCRIPT_OWNER} again",
-        lambda: as_identity(runner, SCRIPT_OWNER),
-    )
-
-    def refused():
-        steps = request_inference(
-            runner,
-            data_asset=DATA_ASSET,
-            roles={"Script": SCRIPT_ASSET},
-            expect_error=True,
-        )
-        failed = [s for s in steps if s["status"] == "error"]
-        if failed[0]["step"] != "capability":
-            raise StepFailed(
-                "expected the refusal at the capability step, got it at "
-                f"{failed[0]['step']!r}: {failed[0]['detail']}"
-            )
-        print(f"      refused: {failed[0]['detail'][:160]}", flush=True)
-        dismiss_progress(runner.driver)
-
-    runner.step("The same request is now refused by the policy", refused)
-
-    # ------------------------------------------------------ and allowed again
-    runner.step(
-        f"Become {DATA_OWNER} to restore the policy",
-        lambda: as_identity(runner, DATA_OWNER),
-    )
-
-    def restore_policy():
-        open_own_asset(runner, DATA_ASSET)
-        set_policy_data(runner, {"allowedDiseases": [ALLOWED_DISEASE]})
-
-    runner.step("Put the allowed disease back", restore_policy)
-
-    runner.step(
-        f"Become {SCRIPT_OWNER} one last time",
-        lambda: as_identity(runner, SCRIPT_OWNER),
-    )
-
-    def allowed_again():
-        metrics = request_inference(
-            runner, data_asset=DATA_ASSET, roles={"Script": SCRIPT_ASSET}
-        )
-        print(f"      metrics: {metrics}", flush=True)
-
-    runner.step("The run is allowed again", allowed_again)
-
-    # ------------------------------- approved code, and then different code
-    # Everything the policy can see is in order, so it approves. What catches it
-    # is the FL client measuring the code it actually received.
-    runner.step(
-        "Publish a second, edited script behind its own public guardian",
-        lambda: register_asset(
-            runner,
-            name=EDITED_SCRIPT_ASSET,
-            path=EDITED_SCRIPT_PATH,
-            guardian_title="Public",
-            port=EDITED_SCRIPT_PORT,
-        ),
-    )
-
-    def read_edited_did():
-        open_own_asset(runner, EDITED_SCRIPT_ASSET)
-        state["edited_did"] = asset_did(runner.driver)
-        edited = script_digest(EDITED_SCRIPT_PATH)
-        if edited == state["digest"]:
-            raise StepFailed("the edited script hashes the same as the original")
-        print(f"      edited script DID: {state['edited_did']}", flush=True)
-        print(f"      its real digest  : {edited}", flush=True)
-
-    runner.step("Read the edited script's DID", read_edited_did)
-
-    runner.step(
-        f"Become {ISSUER} to vouch for the edited script",
-        lambda: as_identity(runner, ISSUER),
-    )
-    runner.step(
-        "Sign a ScriptHashCredential carrying the FIRST script's digest",
-        lambda: (
-            open_issuer(runner, ISSUER_NAME),
-            sign_credential(
-                runner,
-                template="ScriptHashCredential",
-                subject_did=state["edited_did"],
-                claims={"scriptHash": state["digest"]},
-            ),
-        ),
-    )
-    runner.step(
-        "Sign an in-scope IntendedDataUseCredential for the edited script",
+        "Sign the AffiliationCredential into the requester's wallet",
         lambda: sign_credential(
             runner,
-            template="IntendedDataUseCredential",
-            subject_did=state["edited_did"],
+            template="AffiliationCredential",
+            subject_did=state["wallet_did"],
             claims={
-                "useOnlyFor": {
-                    "purposes": ["research"],
-                    "diseases": [ALLOWED_DISEASE],
-                }
+                "isMemberOf": ALLOWED_INSTITUTION,
+                "typeOfMembership": "faculty",
             },
         ),
-    )
-
-    runner.step(
-        f"Become {SCRIPT_OWNER} to run the edited script",
-        lambda: as_identity(runner, SCRIPT_OWNER),
-    )
-
-    def guardian_refuses():
-        steps = request_inference(
-            runner,
-            data_asset=DATA_ASSET,
-            roles={"Script": EDITED_SCRIPT_ASSET},
-            expect_error=True,
-        )
-        by_id = {s["step"]: s for s in steps}
-        if by_id.get("capability", {}).get("status") != "done":
-            raise StepFailed(
-                "the policy was expected to approve this one -- its evidence is in "
-                f"order: {by_id.get('capability')}"
-            )
-        failed = [s for s in steps if s["status"] == "error"]
-        if failed[0]["step"] != "metrics":
-            raise StepFailed(
-                "expected the refusal to come from the guardian, got it at "
-                f"{failed[0]['step']!r}: {failed[0]['detail']}"
-            )
-        if "guardian refused" not in failed[0]["detail"]:
-            raise StepFailed(f"unexpected failure reason: {failed[0]['detail']}")
-        print(f"      refused: {failed[0]['detail'][:160]}", flush=True)
-        dismiss_progress(runner.driver)
-
-    runner.step(
-        "The policy approves it, and the guardian refuses it on the digest",
-        guardian_refuses,
-    )
-
-    run_institution_workflow(runner, state)
-
-
-def run_institution_workflow(runner, state):
-    """Part 5: the other policy -- who may run code here, not what it is for.
-
-    FL-IS reads five credentials rather than two, and four of them are new here:
-    an affiliation, a session key and a wallet key about the requester, and an
-    ownership claim about the script. The last one is the interesting one -- the
-    requester's own wallet signs it, so it is worth something only because the
-    policy checks that signature against a key an authority attested for that same
-    wallet. Which is what the denial at the end demonstrates: a well-formed,
-    correctly signed ownership claim, made by the wrong wallet, is refused.
-
-    Everything Part 2 set up is reused: the script, its digest, and the manual
-    issuer that already vouched for the digest.
-    """
-    # ------------------------------- Part 5.1: the issuer the requester needs
-    runner.step(
-        f"Become {ISSUER} to add a session-key issuer",
-        lambda: as_identity(runner, ISSUER),
     )
 
     def make_session_key_issuer():
@@ -914,7 +839,7 @@ def run_institution_workflow(runner, state):
             runner, SESSION_KEY_ISSUER, kind="external_key_authority"
         )
         # Creating it also created the wallet key authority that attests a
-        # wallet's ledger-registered key for it; the policy has to trust both.
+        # wallet's ledger-registered key for it; FL-IS has to trust both.
         state["wallet_key_did"] = await_card_field(
             runner, f"{SESSION_KEY_ISSUER} (wallet keys)", "did", "issuer"
         )
@@ -926,172 +851,115 @@ def run_institution_workflow(runner, state):
         make_session_key_issuer,
     )
 
-    # --------------------------------- Part 5.2: the requester's own evidence
+    # ----------------------------------- Part 3: hospital A, one policy
     runner.step(
-        f"Become {SCRIPT_OWNER} to set up a wallet",
-        lambda: as_identity(runner, SCRIPT_OWNER),
-    )
-
-    def make_wallets():
-        state["wallet_did"] = create_wallet(runner, WALLET_NAME)
-        state["other_wallet_did"] = create_wallet(runner, OTHER_WALLET_NAME)
-        print(f"      wallet DID      : {state['wallet_did']}", flush=True)
-        print(f"      other wallet DID: {state['other_wallet_did']}", flush=True)
-
-    runner.step("Create two wallets: the requester's, and a stranger's", make_wallets)
-
-    runner.step(
-        f"Become {ISSUER} to vouch for the requester's institution",
-        lambda: as_identity(runner, ISSUER),
+        f"Become {HOSPITAL_A} (the first dataset owner)",
+        lambda: as_identity(runner, HOSPITAL_A),
     )
     runner.step(
-        "Sign an AffiliationCredential into the requester's wallet",
-        lambda: (
-            open_issuer(runner, ISSUER_NAME),
-            sign_credential(
-                runner,
-                template="AffiliationCredential",
-                subject_did=state["wallet_did"],
-                claims={
-                    "isMemberOf": ALLOWED_INSTITUTION,
-                    "typeOfMembership": "faculty",
-                },
-            ),
-        ),
-    )
-
-    runner.step(
-        f"Become {SCRIPT_OWNER} to claim the script",
-        lambda: as_identity(runner, SCRIPT_OWNER),
-    )
-    runner.step(
-        "The wallet signs a ScriptOwnershipCredential with its own contract key",
-        lambda: (
-            open_wallet(runner, WALLET_NAME),
-            sign_credential(
-                runner,
-                template="ScriptOwnershipCredential",
-                subject_did=state["script_did"],
-                claims={"ownedBy": state["wallet_did"]},
-            ),
-        ),
-    )
-
-    # ------------------------------------ Part 5.3: the second dataset owner
-    runner.step(
-        f"Become {DATA_OWNER} to publish a second cohort",
-        lambda: as_identity(runner, DATA_OWNER),
-    )
-    runner.step(
-        "Publish it behind its own inference guardian",
+        f"Publish {ASSET_A} behind its own inference guardian",
         lambda: register_asset(
             runner,
-            name=PARTNER_ASSET,
-            path=COHORT_PATH,
+            name=ASSET_A,
+            path=COHORT_A_PATH,
             guardian_title="Inference",
-            port=PARTNER_GUARDIAN_PORT,
+            port=GUARDIAN_PORT_A,
         ),
     )
     runner.step(
-        "Attach the institution policy and trust all three issuers",
+        "Hospital A attaches FL-DS, and trusts the issuer it reads",
         lambda: expose_asset(
             runner,
-            asset=PARTNER_ASSET,
-            policy=IS_POLICY_NAME,
-            policy_data={"allowedInstitutions": [ALLOWED_INSTITUTION]},
+            asset=ASSET_A,
+            policies=[DS_POLICY_NAME],
+            policy_data={"allowedDiseases": [ALLOWED_DISEASE]},
             issuers=[
-                (state["issuer_did"], ["AffiliationCredential", "ScriptHashCredential"]),
+                (
+                    state["issuer_did"],
+                    ["ScriptHashCredential", "IntendedDataUseCredential"],
+                )
+            ],
+        ),
+    )
+
+    # ------------------------ Part 4: hospital B, the same plus one about them
+    runner.step(
+        f"Become {HOSPITAL_B} (the second dataset owner)",
+        lambda: as_identity(runner, HOSPITAL_B),
+    )
+    runner.step(
+        f"Publish {ASSET_B} behind its own inference guardian",
+        lambda: register_asset(
+            runner,
+            name=ASSET_B,
+            path=COHORT_B_PATH,
+            guardian_title="Inference",
+            port=GUARDIAN_PORT_B,
+        ),
+    )
+    runner.step(
+        "Hospital B attaches BOTH policies, and trusts all three issuers",
+        lambda: expose_asset(
+            runner,
+            asset=ASSET_B,
+            policies=[DS_POLICY_NAME, IS_POLICY_NAME],
+            policy_data={
+                "allowedDiseases": [ALLOWED_DISEASE],
+                "allowedInstitutions": [ALLOWED_INSTITUTION],
+            },
+            issuers=[
+                (
+                    state["issuer_did"],
+                    [
+                        "ScriptHashCredential",
+                        "IntendedDataUseCredential",
+                        "AffiliationCredential",
+                    ],
+                ),
                 (state["binding_did"], ["publicKeyCredential"]),
                 (state["wallet_key_did"], ["WalletVerifyingKeyCredential"]),
             ],
         ),
     )
 
-    # --------------------------------------------------- Part 5.4: the run
+    # ------------------------------------------------ Part 5: the one round
     runner.step(
-        f"Become {SCRIPT_OWNER} to request the run",
+        f"Become {SCRIPT_OWNER} again to request the round",
         lambda: as_identity(runner, SCRIPT_OWNER),
     )
+    runner.step(
+        "Both hospitals show up on the Federated page as connected sites",
+        lambda: await_sites(runner, [ASSET_A, ASSET_B]),
+    )
 
-    def run_institution_inference():
-        metrics = request_inference(
+    def run_the_round():
+        result = request_round(
             runner,
-            data_asset=PARTNER_ASSET,
-            roles={"User": WALLET_NAME, "Script": SCRIPT_ASSET},
+            sites=[ASSET_A, ASSET_B],
+            # The union of what the two sites declared: A's FL-DS wants Script
+            # only, B's FL-DS + FL-IS want both. request_round checks the modal
+            # asks for exactly this, so a policy that changed its mind about its
+            # roles fails here rather than somewhere less legible.
+            roles={"Script": SCRIPT_ASSET, "User": WALLET_NAME},
         )
-        print(f"      metrics: {metrics}", flush=True)
-        expected = os.path.getsize(COHORT_PATH)
-        if metrics.get("samples") != expected:
+        expect_ran(result, [ASSET_A, ASSET_B])
+        aggregate = aggregate_of(result)
+        if aggregate.get("sites") != 2:
+            raise StepFailed(f"expected 2 sites in the aggregate: {aggregate}")
+        # Proof that both hospitals really ran it over their own file: the totals
+        # only add up if each guardian released the cohort it actually holds.
+        expected = sizes[ASSET_A] + sizes[ASSET_B]
+        if aggregate.get("total_samples") != expected:
             raise StepFailed(
-                f"the FL client reported {metrics.get('samples')} bytes of data, "
-                f"but the cohort is {expected} -- it did not get the real file"
+                f"the aggregate covers {aggregate.get('total_samples')} bytes of "
+                f"data, but the two cohorts are {expected} together -- the sites "
+                "did not both run over their real files"
             )
 
     runner.step(
-        "Request the run against the institution policy, and get metrics back",
-        run_institution_inference,
+        "Run one round across both hospitals, and get an aggregate over both",
+        run_the_round,
     )
-
-    # ------------------------- the self-issued claim, signed by another wallet
-    # The stranger's wallet makes the same claim about the same script, correctly
-    # signed with its own key. Nothing about it is malformed -- it just is not the
-    # wallet the affiliation is about, so the chain no longer closes.
-    runner.step(
-        "The stranger's wallet claims the same script",
-        lambda: (
-            open_wallet(runner, OTHER_WALLET_NAME),
-            sign_credential(
-                runner,
-                template="ScriptOwnershipCredential",
-                subject_did=state["script_did"],
-                claims={"ownedBy": state["other_wallet_did"]},
-            ),
-        ),
-    )
-
-    def refused_on_ownership():
-        steps = request_inference(
-            runner,
-            data_asset=PARTNER_ASSET,
-            roles={"User": WALLET_NAME, "Script": SCRIPT_ASSET},
-            expect_error=True,
-        )
-        failed = [s for s in steps if s["status"] == "error"]
-        if failed[0]["step"] != "capability":
-            raise StepFailed(
-                "expected the refusal at the capability step, got it at "
-                f"{failed[0]['step']!r}: {failed[0]['detail']}"
-            )
-        print(f"      refused: {failed[0]['detail'][:160]}", flush=True)
-        dismiss_progress(runner.driver)
-
-    runner.step(
-        "The same request is refused: the claim is not the requester's",
-        refused_on_ownership,
-    )
-
-    runner.step(
-        "The requester's own wallet claims the script again",
-        lambda: (
-            open_wallet(runner, WALLET_NAME),
-            sign_credential(
-                runner,
-                template="ScriptOwnershipCredential",
-                subject_did=state["script_did"],
-                claims={"ownedBy": state["wallet_did"]},
-            ),
-        ),
-    )
-
-    def allowed_on_ownership():
-        metrics = request_inference(
-            runner,
-            data_asset=PARTNER_ASSET,
-            roles={"User": WALLET_NAME, "Script": SCRIPT_ASSET},
-        )
-        print(f"      metrics: {metrics}", flush=True)
-
-    runner.step("And it is allowed again", allowed_on_ownership)
 
 
 # ---------------------------------------------------------------- entry point
@@ -1155,7 +1023,7 @@ def main():
     parser.add_argument("--fps", type=int, default=int(os.environ.get("WEBUI_FPS", "10")))
     args = parser.parse_args()
 
-    for path in (SCRIPT_PATH, EDITED_SCRIPT_PATH, COHORT_PATH):
+    for path in (SCRIPT_PATH, COHORT_A_PATH, COHORT_B_PATH):
         if not os.path.isfile(path):
             parser.error(f"missing tutorial file {path}; run tools/make_tutorial_files.sh")
 

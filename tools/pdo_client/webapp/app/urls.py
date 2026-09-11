@@ -14,6 +14,13 @@ from .views.assets import (
     AssetUseStreamView,
 )
 from .views.config import ConfigPageView, IdentityProvisionView, IdentitySetView
+from .views.federated import (
+    FederatedPageView,
+    FederatedRolesEndpoint,
+    FederatedRunStreamView,
+    FederatedSitesEndpoint,
+    FederatedStartServerStreamView,
+)
 from .views.issuers import (
     IssuerAddVCEndpoint,
     IssuerDetailView,
@@ -64,6 +71,8 @@ urlpatterns = [
         AssetExposeStreamView.as_view(),
         name="asset_expose_stream",
     ),
+    # Federated (page)
+    path("federated/", FederatedPageView.as_view(), name="federated"),
     # Wallets (pages)
     path("wallets/", WalletsListView.as_view(), name="wallets"),
     path(
@@ -97,6 +106,26 @@ urlpatterns = [
         "api/assets/use/stream/",
         AssetUseStreamView.as_view(),
         name="api_asset_use_stream",
+    ),
+    path(
+        "api/federated/sites/",
+        FederatedSitesEndpoint.as_view(),
+        name="api_federated_sites",
+    ),
+    path(
+        "api/federated/roles/",
+        FederatedRolesEndpoint.as_view(),
+        name="api_federated_roles",
+    ),
+    path(
+        "api/federated/run/stream/",
+        FederatedRunStreamView.as_view(),
+        name="api_federated_run_stream",
+    ),
+    path(
+        "api/federated/start-server/stream/",
+        FederatedStartServerStreamView.as_view(),
+        name="api_federated_start_server_stream",
     ),
     path(
         "api/assets/<str:cid_url>/register-policy-issuer/",

@@ -23,6 +23,12 @@
             <div class="card-actions">
                 {% if a.is_local %}
                 <a href="{% url 'asset_dashboard' cid_url=a.cid_url %}" class="btn btn-sm btn-primary">Open</a>
+                {% elif a.federated %}
+                <!-- A federated site is never run on its own: the point of leaving
+                     the data where it is, is that several holders can be asked the
+                     same question at once. Choosing which ones is the Federated
+                     page's job, so there is nothing to click here. -->
+                <a href="{% url 'federated' %}" class="btn btn-sm">Use in a round →</a>
                 {% elif a.has_guardian %}
                 <button type="button" class="btn btn-sm btn-primary"
                         data-action="open-use"
