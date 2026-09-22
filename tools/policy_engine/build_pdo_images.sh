@@ -38,7 +38,13 @@ done
 [ -n "$REPOSITORY" ] || { echo "Missing required option: -r/--repository" >&2; usage >&2; exit 1; }
 [ -n "$BRANCH" ] || { echo "Missing required option: -b/--branch" >&2; usage >&2; exit 1; }
 
-# Some config
+# Some config.
+#
+# PDO's own docker Makefile bakes the *building* user's uid/gid into these images
+# (PDO_USER_UID / PDO_GROUP_UID default to `id -u` / `id -g`), so a published
+# image writes into its bind-mounted transfer directory as whatever uid built it,
+# which is not necessarily the uid running it. run_ledger.sh and run_services.sh
+# open that directory up rather than assume the two match.
 TMP_PDO_CONTRACTS_DIR=/tmp/pdo-contracts
 PDO_VERSION=0.4.29
 PDO_DEBUG_BUILD=1

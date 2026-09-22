@@ -42,13 +42,15 @@ done
 [ -n "$SERVICES_WS" ] || { echo "Missing required option: -w/--workspace" >&2; usage >&2; exit 1; }
 [ -n "$LEDGER_CERT_PATH" ] || { echo "Missing required option: -c/--cert-path" >&2; usage >&2; exit 1; }
 
-# Cleanup
+# Cleanup. As with the ledger, the container writes into this directory as its
+# own uid (1000), which is not necessarily the host user's.
 rm -rf ${SERVICES_WS}
 mkdir -p ${SERVICES_WS}/services/etc
 mkdir -p ${SERVICES_WS}/ccf/keys
 
 # Copy ledger keys
 cp -r $LEDGER_CERT_PATH ${SERVICES_WS}/ccf/keys/
+chmod -R 0777 ${SERVICES_WS}
 
 # Run services
 docker run --rm --network host --name services_container \

@@ -5,11 +5,13 @@ mkdir -p $SCRIPT_DIR/pdo_scratch
 
 
 INTERFACE="$(hostname -I | awk '{print $1}')"
+# 8000 is what the tutorial and the devcontainer's forwarded port expect;
+# WEBAPP_PORT is for a host that already has something there.
 bash pdo_client/docker/run_webapp.sh \
     --csrf-trusted-origins "${CSRF_TRUSTED_ORIGINS:-}" \
-    --image mlcommons/pdo_base_client:latest \
+    --image mlcommons/pdo_base_client:v2 \
     --interface 127.0.0.1 \
-    --port 8000 \
+    --port "${WEBAPP_PORT:-8000}" \
     --cert-path /tmp/pdo_ledger/ccf/keys/networkcert.pem \
     --site-toml /tmp/pdo_services/services/etc/site.toml \
     --keys-folder /tmp/pdo_keys \

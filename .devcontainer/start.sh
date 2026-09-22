@@ -78,12 +78,14 @@ echo "==> Pulling images (first run only; this can take a few minutes)"
 PULL_PIDS=()
 PULL_IMAGES=()
 for img in \
-    mlcommons/pdo_ledger:latest \
-    mlcommons/pdo_services:latest \
-    mlcommons/pdo_base_client:latest \
-    mlcommons/pdo_toy_asset_registry:latest \
-    mlcommons/pdo_toy_template_registry:latest \
-    mlcommons/toy_guardian:latest ; do
+    mlcommons/pdo_ledger:v2 \
+    mlcommons/pdo_services:v2 \
+    mlcommons/pdo_base_client:v2 \
+    mlcommons/pdo_toy_asset_registry:v2 \
+    mlcommons/pdo_toy_template_registry:v2 \
+    mlcommons/toy_guardian:v2 \
+    mlcommons/toy_inference_guardian:v2 \
+    mlcommons/pdo_fl_server:v2 ; do
     docker pull --quiet "$img" >/dev/null &
     PULL_PIDS+=("$!")
     PULL_IMAGES+=("$img")
@@ -113,8 +115,16 @@ bash docker_start_registries.sh
 # so a short fixed pause covers the two of them.
 sleep 10
 
-echo "==> Creating the tutorial data file at /tmp/asset_data.txt"
-echo "The eagle lands at midnight." > /tmp/asset_data.txt
+echo "==> Creating the tutorial files"
+bash make_tutorial_files.sh
+
+# The inference tutorial's job board. Both the webapp (which submits rounds) and
+# the FL client bundled with each inference guardian (which announces itself to it
+# and claims work from it) talk to it, so it comes up before either of them -- a
+# client that starts with no server to announce to is a site nobody can see.
+echo "==> Starting the FL server"
+nohup bash start_fl_server.sh > /tmp/pdo_fl_server.log 2>&1 &
+wait_for "the FL server" 120 curl -sf http://localhost:7920/info
 
 echo "==> Starting the webapp (with the guardian deploy watcher)"
 export CSRF_TRUSTED_ORIGINS="https://*.app.github.dev,https://*.githubpreview.dev"
@@ -129,8 +139,11 @@ cat <<EOF
  Open the forwarded URL for port 8000 (see the "Ports" tab),
  then follow the tutorial.
 
- Webapp logs:   /tmp/pdo_webapp.log
- Guardian logs: $TOOLS/pdo_scratch/guardian_requests/guardian_deploy.log
- Data file:     /tmp/asset_data.txt
+ Webapp logs:    /tmp/pdo_webapp.log
+ FL server logs: /tmp/pdo_fl_server.log
+ Guardian logs:  $TOOLS/pdo_scratch/guardian_requests/guardian_deploy.log
+ Data files:     /tmp/asset_data.txt (download tutorial)
+                 /tmp/hospital_a_cohort.csv, /tmp/hospital_b_cohort.csv
+                 and /tmp/inference_script.py (federated inference tutorial)
 ============================================================
 EOF

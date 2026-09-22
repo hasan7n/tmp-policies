@@ -10,9 +10,17 @@ from .views.assets import (
     AssetsListView,
     AssetUpdatePolicyDataEndpoint,
     AssetUseEndpoint,
+    AssetUseFormEndpoint,
     AssetUseStreamView,
 )
 from .views.config import ConfigPageView, IdentityProvisionView, IdentitySetView
+from .views.federated import (
+    FederatedPageView,
+    FederatedRolesEndpoint,
+    FederatedRunStreamView,
+    FederatedSitesEndpoint,
+    FederatedStartServerStreamView,
+)
 from .views.issuers import (
     IssuerAddVCEndpoint,
     IssuerDetailView,
@@ -23,6 +31,7 @@ from .views.issuers import (
 from .views.wallets import (
     WalletAddVCEndpoint,
     WalletDetailView,
+    WalletSignCredentialEndpoint,
     WalletsListView,
     WalletUpdateNameEndpoint,
 )
@@ -62,6 +71,8 @@ urlpatterns = [
         AssetExposeStreamView.as_view(),
         name="asset_expose_stream",
     ),
+    # Federated (page)
+    path("federated/", FederatedPageView.as_view(), name="federated"),
     # Wallets (pages)
     path("wallets/", WalletsListView.as_view(), name="wallets"),
     path(
@@ -87,9 +98,34 @@ urlpatterns = [
     # JSON endpoints
     path("api/assets/use/", AssetUseEndpoint.as_view(), name="api_asset_use"),
     path(
+        "api/assets/use-form/",
+        AssetUseFormEndpoint.as_view(),
+        name="api_asset_use_form",
+    ),
+    path(
         "api/assets/use/stream/",
         AssetUseStreamView.as_view(),
         name="api_asset_use_stream",
+    ),
+    path(
+        "api/federated/sites/",
+        FederatedSitesEndpoint.as_view(),
+        name="api_federated_sites",
+    ),
+    path(
+        "api/federated/roles/",
+        FederatedRolesEndpoint.as_view(),
+        name="api_federated_roles",
+    ),
+    path(
+        "api/federated/run/stream/",
+        FederatedRunStreamView.as_view(),
+        name="api_federated_run_stream",
+    ),
+    path(
+        "api/federated/start-server/stream/",
+        FederatedStartServerStreamView.as_view(),
+        name="api_federated_start_server_stream",
     ),
     path(
         "api/assets/<str:cid_url>/register-policy-issuer/",
@@ -105,6 +141,11 @@ urlpatterns = [
         "api/wallets/<str:cid_url>/add-vc/",
         WalletAddVCEndpoint.as_view(),
         name="api_wallet_add_vc",
+    ),
+    path(
+        "api/wallets/<str:cid_url>/sign-credential/",
+        WalletSignCredentialEndpoint.as_view(),
+        name="api_wallet_sign_credential",
     ),
     path(
         "api/wallets/<str:cid_url>/update-name/",

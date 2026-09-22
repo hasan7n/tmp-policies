@@ -1,13 +1,14 @@
 site_name: Policy Fabric
 site_description: Policy Fabric — decoupled AI governance reference implementation
-site_url: https://hasan7n.github.io/tmp-policies/
-repo_url: https://github.com/hasan7n/tmp-policies
-repo_name: hasan7n/tmp-policies
+site_url: https://docs.mlcommons.org/policy_fabric/
+repo_url: https://github.com/mlcommons/policy_fabric
+repo_name: mlcommons/policy_fabric
 docs_dir: docs
 
 nav:
   - Policy Fabric 101: index.md
-  - Hands-On Tutorial: tutorial.md
+  - Hands-On Tutorial — Download: tutorial.md
+  - Hands-On Tutorial — Inference: tutorial_inference.md
 
 theme:
   name: material

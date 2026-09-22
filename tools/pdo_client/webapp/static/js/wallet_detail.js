@@ -1,5 +1,6 @@
-// Wallet dashboard: JSON-POST actions (update name, add VC). On success we
-// reload the page.
+// Wallet dashboard: JSON-POST actions (update name, add VC, sign credential).
+// On success a mutating action reloads the page; signing reports inline, because
+// what it changed is another contract's credential store, not this page.
 
 (function () {
     function init() {
@@ -37,6 +38,54 @@
                     '/api/wallets/' + cidUrl + '/add-vc/', { vc: vc });
                 window.flash('Credential added.', 'success');
                 window.location.reload();
+            } catch (err) {
+                window.flash(err.message, 'error');
+            }
+        });
+
+        // ---- Sign credential as this wallet ----
+        // Signed with the wallet's own contract key; the server picks the key,
+        // the client only says what is being claimed and about whom.
+        var signForm = document.getElementById('sign-credential-form');
+        if (!signForm) return;
+
+        var templateSelect = document.getElementById('sign-template-select');
+        var claimsTextarea = document.getElementById('sign-claims-input');
+        function prefillClaims() {
+            if (!templateSelect || !claimsTextarea) return;
+            var opt = templateSelect.options[templateSelect.selectedIndex];
+            if (!opt) return;
+            try {
+                var schema = JSON.parse(opt.dataset.schema || '{}');
+                claimsTextarea.value = JSON.stringify(schema, null, 2);
+            } catch (e) { /* leave textarea untouched */ }
+        }
+        if (templateSelect) {
+            templateSelect.addEventListener('change', prefillClaims);
+            prefillClaims();
+        }
+
+        signForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var raw = (claimsTextarea.value || '').trim();
+            var claims = {};
+            if (raw) {
+                try { claims = JSON.parse(raw); }
+                catch (err) {
+                    window.flash('Invalid claims JSON: ' + err.message, 'error');
+                    return;
+                }
+            }
+            var payload = {
+                template_type: templateSelect.value,
+                subject_did: document.getElementById('sign-subject-did').value.trim(),
+                claims: claims,
+            };
+            try {
+                var res = await window.api.post(
+                    '/api/wallets/' + cidUrl + '/sign-credential/', payload);
+                document.getElementById('sign-credential-modal').classList.add('hidden');
+                window.flash(res.message || 'Credential issued.', 'success');
             } catch (err) {
                 window.flash(err.message, 'error');
             }

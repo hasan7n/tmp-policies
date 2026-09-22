@@ -46,6 +46,12 @@ done
 CREDENTIALS_ABS="$( cd "$CREDENTIALS_DIR" 2>/dev/null && pwd )"   || { echo "Missing credentials folder: $CREDENTIALS_DIR" >&2; exit 1; }
 POLICY_CARDS_ABS="$( cd "$POLICY_CARDS_DIR" 2>/dev/null && pwd )" || { echo "Missing policy_cards folder: $POLICY_CARDS_DIR" >&2; exit 1; }
 
+# Replace any registry already running under this name, the way the guardians
+# do. Without this a restart onto a new image fails on the name, leaving the old
+# container answering on the port -- which looks like the new one, with the old
+# one's seeded templates.
+docker rm -f template_registry_container >/dev/null 2>&1 || true
+
 docker run --rm --user "$(id -u):0" --name template_registry_container \
     -p $INTERFACE:$PORT:8000 \
     -v "$CREDENTIALS_ABS":/templates/credentials:ro \

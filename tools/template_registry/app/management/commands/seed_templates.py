@@ -47,6 +47,18 @@ def _simplify(properties):
     return out
 
 
+def _template_name(duo_dir):
+    """The registry name for a policy folder, from its path under POLICY_CARDS_DIR.
+
+    Policies may be grouped in subfolders (``FL/inference-...``), so the name is the
+    whole relative path rather than the leaf, joined with ``-`` to stay a flat
+    identifier. A policy sitting directly under the root keeps exactly the name it
+    had before grouping existed.
+    """
+    relative = duo_dir.relative_to(POLICY_CARDS_DIR)
+    return "-".join(relative.parts).upper()
+
+
 class Command(BaseCommand):
     help = (
         "Seed credential templates (from credentials/) and policy templates "
@@ -73,15 +85,13 @@ class Command(BaseCommand):
 
     def _seed_policies(self):
         count = 0
-        for duo_dir in sorted(p for p in POLICY_CARDS_DIR.iterdir() if p.is_dir()):
+        for duo_dir in sorted(p.parent for p in POLICY_CARDS_DIR.rglob("policy.rego")):
             rego_path = duo_dir / "policy.rego"
-            if not rego_path.exists():
-                continue  # not a DUO module folder
-
             readme_path = duo_dir / "README.md"
             schema_path = duo_dir / "policy_data_schema.json"
+            name = _template_name(duo_dir)
             PolicyTemplate.objects.update_or_create(
-                name=duo_dir.name.upper(),
+                name=name,
                 defaults={
                     "rego_source": rego_path.read_text(),
                     "readme": readme_path.read_text() if readme_path.exists() else "",
@@ -92,6 +102,6 @@ class Command(BaseCommand):
                     ),
                 },
             )
-            self.stdout.write(f"  policy template: {duo_dir.name.upper()}")
+            self.stdout.write(f"  policy template: {name}")
             count += 1
         self.stdout.write(f"seeded {count} policy template(s)")

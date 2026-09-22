@@ -16,6 +16,16 @@ bare-metal run). `run.sh` errors out if either is missing.
 The only user-editable setting is the **public key / identity**, stored in the
 database; everything else is deployment config supplied at launch.
 
+Two values are read straight from the environment rather than taken as args,
+because they are about a service this webapp *joins* rather than one it owns:
+
+| Env var | What it is |
+| --- | --- |
+| `FL_SERVER_URL` | the FL server the Federated page offers first. A default, not a setting the flow reads — a round goes to whichever server the requester names |
+| `FL_SERVER_URL_FROM_GUARDIAN` | how a guardian *container* names that same server. It cannot reach a host-published port as `localhost`, so this is the host-gateway alias the guardian's `run.sh` maps in |
+| `FL_SERVER_DIR` | host path of `tools/fl_server`, for the one case where the Federated page offers to *start* a server because nothing is answering. Like `GUARDIANS_DIR` this names a path on the host, since that is where the command runs |
+| `FL_SERVER_IMAGE` | the image that command runs |
+
 ## Build
 
 The webapp is part of the merged PDO client image. Build it from the client

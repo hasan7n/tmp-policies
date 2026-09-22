@@ -36,6 +36,7 @@ _op_lock = threading.Lock()
 FAMILY_IDENTITY = "identity"
 FAMILY_SIGNATURE_AUTHORITY = "signature_authority"
 FAMILY_EXTERNAL_KEY_AUTHORITY = "external_key_authority"
+FAMILY_WALLET_KEY_AUTHORITY = "wallet_key_authority"
 FAMILY_POLICY_AGENT = "policy_agent"
 
 
@@ -114,6 +115,22 @@ def list_external_key_authority_ids(user_name):
         e["contract_id"]
         for e in get_user_contracts(user_name)
         if e["contract_family"] == FAMILY_EXTERNAL_KEY_AUTHORITY
+    ]
+
+
+def list_wallet_key_authority_ids(user_name):
+    """Contract IDs owned by ``user_name`` whose family is wallet_key_authority.
+
+    Nobody creates one of these on purpose: each is made alongside an external key
+    authority, to attest the ledger-registered verifying key of a wallet before
+    that authority will bind a session key to it. It is listed because it is an
+    issuer like any other — a policy that reads what it signs has to trust it, and
+    trusting it means naming its DID.
+    """
+    return [
+        e["contract_id"]
+        for e in get_user_contracts(user_name)
+        if e["contract_family"] == FAMILY_WALLET_KEY_AUTHORITY
     ]
 
 

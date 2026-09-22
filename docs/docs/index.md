@@ -145,7 +145,7 @@ We define a set of credential types in Policy Fabric. Each type's claims structu
 
 ### Repository Structure
 
-The repository contains the policy cards, the credentials, and tools to run the [tutorial](tutorial.md):
+The repository contains the policy cards, the credentials, and tools to run the [tutorials](tutorial.md):
 
 ```
 policy-fabric/
@@ -160,11 +160,14 @@ policy-fabric/
 - **Reference implementation.** Policy Fabric is provided in this repository to demonstrate the decoupling architecture. It is not a production governance system and ships without warranty.
 - **Not legal or compliance advice.** The framework mappings are informative, not a certification. Adopting Policy Fabric does not by itself establish conformance with NIST AI RMF, ISO/IEC 42001, the EU AI Act, or any other regime.
 - **You retain responsibility.** Operators remain responsible for verifying that their own legal and regulatory obligations are satisfied in their jurisdiction.
-- **Licensing.** Distributed under the repository's open-source license (see LICENSE). Replace this clause with the chosen license terms before release.
+- **Licensing.** Copyright MLCommons. All rights reserved. Licensing to be determined (see LICENSE).
 
-### Hands-on Tutorial
+### Hands-on Tutorials
 
-See the [Hands-On Tutorial](tutorial.md) for a full, step-by-step walkthrough of policy-gated data sharing in the web UI.
+Two full, step-by-step walkthroughs in the web UI, showing the same architecture gating two different operations:
+
+- [Download](tutorial.md) — the data leaves, encrypted to a requester the policy checked. Start here.
+- [Inference](tutorial_inference.md) — the data stays put and approved code comes to it, at **two hospitals at once**. One hospital gates on what the code is for; the other gates on that *and* on who is running it, holding them to a claim their own wallet signed. Each site decides for itself, on the same request, in a single federated round.
 
 ## Research and Citation
 

@@ -60,7 +60,7 @@ Everything runs against a single client identity at a time. This means you chang
 
 You can launch a preinstalled [Codespace](https://github.com/features/codespaces) cloud environment by clicking this button:
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/hasan7n/tmp-policies?ref=main){ target="_blank" rel="noopener" }
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/mlcommons/policy_fabric?ref=main){ target="_blank" rel="noopener" }
 
 The devcontainer automatically brings up the policy engine, registries, and the webapp, and creates the tutorial data file for you. The first start pulls several images, so give it a few minutes — progress shows in the Codespaces log.
 
@@ -210,7 +210,7 @@ Finally, the **Dataset User** requests to download the dataset.
 > **🔁 Switch identity to `data_user`.**
 
 1. Go to **Assets**. The `data1` card now shows an enabled **Use** button.
-2. Click **Use** → in the modal, select **your wallet** → **Request Download**.
+2. Click **Use** → in the modal, select **your wallet** under **User wallet** → **Request Download**.
 3. After a moment, the **Decrypted Data** panel appears showing:
 
    ```text

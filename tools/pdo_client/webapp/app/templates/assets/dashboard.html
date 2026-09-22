@@ -32,8 +32,9 @@
     <div class="card">
         <h2 style="margin:0 0 0.5rem">Guardian</h2>
         {% if guardian_deployed %}
-        <p style="margin:0">Your asset is behind the guardian running on
-            <strong>{{ guardian_endpoint }}</strong>.</p>
+        <p style="margin:0">Your asset is behind a <strong>{{ guardian_type }}</strong>
+            guardian running on <strong>{{ guardian_endpoint }}</strong>{% if serve_on %},
+            serving on <strong>{{ serve_on }}</strong>{% endif %}.</p>
         {% else %}
         <p style="color:#999;margin:0">No guardian recorded for this asset.</p>
         {% endif %}
@@ -86,13 +87,18 @@
         {% endif %}
     </div>
 
-    {% elif guardian_deployed %}
+    {% elif guardian_deployed and supports_policy %}
     <div class="card">
         <div class="card-header" style="margin-bottom:0.75rem">
             <h2 style="margin:0">Expose</h2>
             <button type="button" class="btn btn-sm btn-primary"
                     data-modal-open="expose-modal">Expose</button>
         </div>
+    </div>
+    {% elif guardian_deployed %}
+    <div class="card">
+        <p style="color:#999;margin:0">This asset is served in the clear by a
+            <strong>{{ guardian_type }}</strong> guardian, so there is no policy to attach.</p>
     </div>
     {% endif %}
 </div>

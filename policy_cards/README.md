@@ -6,6 +6,12 @@ selects one or more DUOs when exposing an asset; the webapp creates a
 `set_rego_policy` (as `[ [ duo_id, rego_source ], ... ]`). The contract evaluates
 each selected module and combines the results.
 
+Policies may be grouped in a subfolder; [`FL/`](FL/) holds the ones written for
+**inference**, where the data stays put and a script is run against it in place
+instead of being downloaded. Those use a second role, `Script`, for evidence about
+the code, and are documented in that folder's own README. Everything below concerns
+the download DUOs at this level.
+
 ## Folders
 
 Every DUO additionally requires a **publicKeyCredential** whose claim `key` is the
