@@ -115,7 +115,7 @@ The asset's DID is passed to the guardian when it is deployed, which is why regi
 
 You can launch a preinstalled [Codespace](https://github.com/features/codespaces) cloud environment by clicking this button:
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/hasan7n/tmp-policies?ref=main){ target="_blank" rel="noopener" }
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/mlcommons/policy_fabric?ref=main){ target="_blank" rel="noopener" }
 
 The devcontainer automatically brings up the policy engine, registries, the FL server and the webapp, and creates the tutorial files for you. The first start pulls several images, so give it a few minutes — progress shows in the Codespaces log.
 

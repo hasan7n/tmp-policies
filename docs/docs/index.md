@@ -160,7 +160,7 @@ policy-fabric/
 - **Reference implementation.** Policy Fabric is provided in this repository to demonstrate the decoupling architecture. It is not a production governance system and ships without warranty.
 - **Not legal or compliance advice.** The framework mappings are informative, not a certification. Adopting Policy Fabric does not by itself establish conformance with NIST AI RMF, ISO/IEC 42001, the EU AI Act, or any other regime.
 - **You retain responsibility.** Operators remain responsible for verifying that their own legal and regulatory obligations are satisfied in their jurisdiction.
-- **Licensing.** Distributed under the repository's open-source license (see LICENSE). Replace this clause with the chosen license terms before release.
+- **Licensing.** Copyright MLCommons. All rights reserved. Licensing to be determined (see LICENSE).
 
 ### Hands-on Tutorials
 
