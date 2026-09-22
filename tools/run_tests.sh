@@ -1,6 +1,7 @@
 # run policy client webapp (bare metal)
-export PDO_INSTALL_ROOT=/home/hasan/work/pdos/pdo_install
-export PDO_CONTRACTS_ROOT=/home/hasan/work/pdos/pdo-contracts
+: "${PF_WORKSPACE:?Missing environment variable PF_WORKSPACE}"
+export PDO_INSTALL_ROOT=$PF_WORKSPACE/pdo_install
+export PDO_CONTRACTS_ROOT=$PF_WORKSPACE/pdo-contracts
 
 MY_HOST="$(hostname -I | awk '{print $1}')"
 # bash pdo_client/scripts/run_cli.sh \

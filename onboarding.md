@@ -4,10 +4,10 @@ You have been handed two checkouts that sit side by side:
 
 ```
 <workspace>/
-  tmp-policies/      this repo: policy cards, the toy registries, the guardians,
+  policy_fabric/      this repo: policy cards, the toy registries, the guardians,
                      the FL server, and the webapp a person actually clicks
   pdo-contracts/     upstream Private Data Objects contract families, which
-                     tmp-policies is a consumer of and never modifies
+                     policy_fabric is a consumer of and never modifies
 ```
 
 Read this file first, then read the two folders in the order it tells you to.
@@ -41,7 +41,7 @@ to one guardian; the guardian checks the capability and nothing else.
 
 ## 2. Read the two folders, in this order
 
-### 2.1 `tmp-policies` — start here
+### 2.1 `policy_fabric` — start here
 
 Read these, in order. They are short and each one is the entry point to a layer.
 
@@ -94,7 +94,7 @@ where "the code that was approved" is compared against "the code that is running
 - the guardian service framework, which `tools/guardians/*/` extend by supplying
   a `capability_handler_map`.
 
-Nothing in `tmp-policies` modifies `pdo-contracts`. The revision it is built from
+Nothing in `policy_fabric` modifies `pdo-contracts`. The revision it is built from
 is pinned at the top of `tools/docker_build_all.sh` — and the ledger, the enclave
 services and the client must all come from that same revision, or every contract
 creation fails.
@@ -209,7 +209,7 @@ both registries, the FL server container and the webapp, then drives
 `docs/docs/tutorial_inference.md` through a real browser and records it.
 
 ```bash
-cd <workspace>/tmp-policies
+cd <workspace>/policy_fabric
 PYTHON=<workspace>/venv/bin/python bash tools/tests/run_webui_inference_test.sh
 ```
 

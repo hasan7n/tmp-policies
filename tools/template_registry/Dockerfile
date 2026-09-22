@@ -12,7 +12,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the registry app. The credential/policy-card folders it seeds from live
-# outside this build context (at the top of the tmp-policies tree), so they are
+# outside this build context (at the top of the policy_fabric tree), so they are
 # not baked in; run_docker.sh bind-mounts the host folders onto the container
 # paths named in CMD below.
 COPY . .
